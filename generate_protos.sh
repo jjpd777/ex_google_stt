@@ -22,5 +22,4 @@ protoc -I ./googleapis --elixir_out=plugins=grpc:./lib $PROTOS
 cd lib
 for proto in $PROTOS; do
   file=${proto%.*}.pb.ex
-  sed -i "s#@moduledoc false#@moduledoc \"Auto-generated from \`googleapis/$proto\`\"#" $file
 done
