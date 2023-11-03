@@ -14,17 +14,16 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
 
   @tag :external
   test "regcognize in parts" do
-    cfg =
-      RecognitionConfig.new(
-        audio_channel_count: 1,
-        encoding: :FLAC,
-        language_code: "en-GB",
-        sample_rate_hertz: 16000
-      )
+    cfg = %RecognitionConfig{
+      audio_channel_count: 1,
+      encoding: :FLAC,
+      language_code: "en-GB",
+      sample_rate_hertz: 16000
+    }
 
-    str_cfg = StreamingRecognitionConfig.new(config: cfg, interim_results: false)
+    str_cfg = %StreamingRecognitionConfig{config: cfg, interim_results: false}
 
-    str_cfg_req = StreamingRecognizeRequest.new(streaming_request: {:streaming_config, str_cfg})
+    str_cfg_req = %StreamingRecognizeRequest{streaming_request: {:streaming_config, str_cfg}}
 
     fixture_path = "../../fixtures/sample.flac" |> Path.expand(__DIR__)
 
@@ -34,7 +33,7 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
     content_reqs =
       [part_a, part_b, part_c]
       |> Enum.map(fn data ->
-        StreamingRecognizeRequest.new(streaming_request: {:audio_content, data})
+        %StreamingRecognizeRequest{streaming_request: {:audio_content, data}}
       end)
 
     assert {:ok, client} = @module.start_link()
@@ -60,22 +59,21 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
 
   @tag :external
   test "regcognize in one request and include sender" do
-    cfg =
-      RecognitionConfig.new(
-        audio_channel_count: 1,
-        encoding: :FLAC,
-        language_code: "en-GB",
-        sample_rate_hertz: 16000
-      )
+    cfg = %RecognitionConfig{
+      audio_channel_count: 1,
+      encoding: :FLAC,
+      language_code: "en-GB",
+      sample_rate_hertz: 16000
+    }
 
-    str_cfg = StreamingRecognitionConfig.new(config: cfg, interim_results: false)
+    str_cfg = %StreamingRecognitionConfig{config: cfg, interim_results: false}
 
-    str_cfg_req = StreamingRecognizeRequest.new(streaming_request: {:streaming_config, str_cfg})
+    str_cfg_req = %StreamingRecognizeRequest{streaming_request: {:streaming_config, str_cfg}}
 
     fixture_path = "../../fixtures/sample.flac" |> Path.expand(__DIR__)
 
     data = File.read!(fixture_path)
-    stream_audio_req = StreamingRecognizeRequest.new(streaming_request: {:audio_content, data})
+    stream_audio_req = %StreamingRecognizeRequest{streaming_request: {:audio_content, data}}
 
     assert {:ok, client} = @module.start_link(include_sender: true)
     client |> @module.send_request(str_cfg_req)
@@ -87,7 +85,7 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
 
     @module.end_stream(client)
 
-    assert_receive {client, %StreamingRecognizeResponse{results: results}}, 5000
+    assert_receive {^client, %StreamingRecognizeResponse{results: results}}, 5000
     assert [%StreamingRecognitionResult{alternatives: alternative}] = results
     assert [%SpeechRecognitionAlternative{transcript: transcript}] = alternative
 
