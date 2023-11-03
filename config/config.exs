@@ -1,6 +1,6 @@
 import Config
 
-creds_path = Path.expand("./creds.json", __DIR__)
+creds_path = Path.expand("./google-credentials.json", __DIR__)
 
 if creds_path |> File.exists?() do
   config :goth, json: creds_path |> File.read!()
