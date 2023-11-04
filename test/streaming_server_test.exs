@@ -1,4 +1,4 @@
-defmodule GCloud.SpeechAPI.Streaming.ClientTest do
+defmodule ExGoogleSTT.StreamingServerTest do
   use ExUnit.Case, async: true
 
   alias Google.Cloud.Speech.V1.{
@@ -10,8 +10,8 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
     StreamingRecognizeResponse
   }
 
-  alias GCloud.SpeechAPI.Streaming.Client, as: StreamingClient
-  alias GCloud.Fixtures.Recognize, as: Fixtures
+  alias ExGoogleSTT.StreamingServer
+  alias ExGoogleSTT.Fixtures
 
   @recognition_cfg %RecognitionConfig{
     audio_channel_count: 1,
@@ -20,7 +20,7 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
     sample_rate_hertz: 16_000
   }
 
-  @sound_fixture_path "../../support/fixtures/sample.flac" |> Path.expand(__DIR__)
+  @sound_fixture_path "./support/fixtures/sample.flac" |> Path.expand(__DIR__)
 
   describe "Testing external api calls" do
     @describetag :integration
@@ -45,18 +45,18 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
           %StreamingRecognizeRequest{streaming_request: {:audio_content, data}}
         end)
 
-      assert {:ok, client} = StreamingClient.start_link()
-      client |> StreamingClient.send_request(str_cfg_req)
+      assert {:ok, client} = StreamingServer.start_link()
+      client |> StreamingServer.send_request(str_cfg_req)
 
       content_reqs
       |> Enum.each(fn stream_audio_req ->
-        StreamingClient.send_request(
+        StreamingServer.send_request(
           client,
           stream_audio_req
         )
       end)
 
-      StreamingClient.end_stream(client)
+      StreamingServer.end_stream(client)
 
       assert_receive %StreamingRecognizeResponse{results: results}, 5000
       assert [%StreamingRecognitionResult{alternatives: alternative}] = results
@@ -73,15 +73,15 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
       data = File.read!(@sound_fixture_path)
       stream_audio_req = %StreamingRecognizeRequest{streaming_request: {:audio_content, data}}
 
-      assert {:ok, client} = StreamingClient.start_link(include_sender: true)
-      client |> StreamingClient.send_request(str_cfg_req)
+      assert {:ok, client} = StreamingServer.start_link(include_sender: true)
+      client |> StreamingServer.send_request(str_cfg_req)
 
-      StreamingClient.send_request(
+      StreamingServer.send_request(
         client,
         stream_audio_req
       )
 
-      StreamingClient.end_stream(client)
+      StreamingServer.end_stream(client)
 
       assert_receive {^client, %StreamingRecognizeResponse{results: results}}, 5000
       assert [%StreamingRecognitionResult{alternatives: alternative}] = results
@@ -98,15 +98,15 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
       data = File.read!(@sound_fixture_path)
       stream_audio_req = %StreamingRecognizeRequest{streaming_request: {:audio_content, data}}
 
-      assert {:ok, client} = StreamingClient.start_link(include_sender: true)
-      client |> StreamingClient.send_request(str_cfg_req)
+      assert {:ok, client} = StreamingServer.start_link(include_sender: true)
+      client |> StreamingServer.send_request(str_cfg_req)
 
-      StreamingClient.send_request(
+      StreamingServer.send_request(
         client,
         stream_audio_req
       )
 
-      StreamingClient.end_stream(client)
+      StreamingServer.end_stream(client)
 
       %{last_response: last_response, interim_results: interim_results} =
         capture_interim_responses(client)
@@ -166,7 +166,7 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
 
     task =
       Task.async(fn ->
-        send(target, {:client, StreamingClient.start(monitor_target: true)})
+        send(target, {:client, StreamingServer.start(monitor_target: true)})
         receive do: (:exit -> :ok)
       end)
 

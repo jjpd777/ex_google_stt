@@ -1,4 +1,4 @@
-defmodule GCloud.SpeechAPI.Streaming.Client do
+defmodule ExGoogleSTT.StreamingServer do
   @moduledoc """
   A client process for Streaming API.
 
@@ -33,7 +33,7 @@ defmodule GCloud.SpeechAPI.Streaming.Client do
 
   use GenServer
 
-  alias __MODULE__.Connection
+  alias ExGoogleSTT.GrpcSpeechClient
 
   alias Google.Cloud.Speech.V1.{
     StreamingRecognizeRequest,
@@ -123,7 +123,7 @@ defmodule GCloud.SpeechAPI.Streaming.Client do
 
   @impl true
   def init(opts) do
-    {:ok, conn} = Connection.start_link()
+    {:ok, conn} = GrpcSpeechClient.start_link()
     state = opts |> Map.merge(%{conn: conn})
 
     if opts.monitor_target do
@@ -135,13 +135,13 @@ defmodule GCloud.SpeechAPI.Streaming.Client do
 
   @impl true
   def handle_cast({:send_requests, requests, opts}, state) do
-    :ok = state.conn |> Connection.send_requests(requests, opts)
+    :ok = state.conn |> GrpcSpeechClient.send_requests(requests, opts)
     {:noreply, state}
   end
 
   @impl true
   def handle_cast(:end_stream, state) do
-    :ok = state.conn |> Connection.end_stream()
+    :ok = state.conn |> GrpcSpeechClient.end_stream()
     {:noreply, state}
   end
 
@@ -169,7 +169,7 @@ defmodule GCloud.SpeechAPI.Streaming.Client do
 
   @impl true
   def terminate(_reason, state) do
-    state.conn |> Connection.stop()
+    state.conn |> GrpcSpeechClient.stop()
   end
 
   defp update_result_time(result, start_time) when is_integer(start_time) do

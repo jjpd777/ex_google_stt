@@ -1,11 +1,11 @@
-defmodule GCloud.SpeechAPI.Streaming.Client.Connection do
+defmodule ExGoogleSTT.GrpcSpeechClient do
   @moduledoc false
   # This module wraps a crappy API of gRPC library that has a call reading
   # the process mailbox - `GRPC.Stub.recv/2`.
   # Using GenServer would break the calls to this function as `handle_info` callback
   # would consume any messages that should be parsed by `recv`
 
-  alias GCloud.SpeechAPI
+  alias ExGoogleSTT.GrpcSpeechClient.Connection
   alias Google.Cloud.Speech.V1.Speech.Stub, as: SpeechStub
   alias Google.Cloud.Speech.V1.StreamingRecognizeRequest
 
@@ -24,7 +24,7 @@ defmodule GCloud.SpeechAPI.Streaming.Client.Connection do
   end
 
   defp do_start(fun, target) do
-    with {:ok, channel} <- SpeechAPI.connect() do
+    with {:ok, channel} <- Connection.connect() do
       pid = apply(Kernel, fun, [__MODULE__, :init, [channel, target]])
       {:ok, pid}
     end
@@ -51,7 +51,7 @@ defmodule GCloud.SpeechAPI.Streaming.Client.Connection do
   @doc false
   # entry point of client process
   def init(channel, target) do
-    request_opts = SpeechAPI.request_opts()
+    request_opts = Connection.request_opts()
     stream = SpeechStub.streaming_recognize(channel, request_opts)
     loop(%{channel: channel, eos: false, stream: stream, target: target, recv_enum: nil})
   end
@@ -98,7 +98,7 @@ defmodule GCloud.SpeechAPI.Streaming.Client.Connection do
         end
 
       {__MODULE__, :stop} ->
-        SpeechAPI.disconnect(channel)
+        Connection.disconnect(channel)
         exit(:normal)
     after
       @timeout -> state

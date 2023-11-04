@@ -1,4 +1,4 @@
-defmodule GCloud.SpeechAPI do
+defmodule ExGoogleSTT.GrpcSpeechClient.Connection do
   @moduledoc """
   Main module of the library. It provides a high-level API for Google Cloud Speech-to-Text API.
   """

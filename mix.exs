@@ -1,23 +1,20 @@
-defmodule GCloud.SpeechAPI.MixProject do
+defmodule ExGoogleSTT.MixProject do
   use Mix.Project
 
-  @version "0.4.0"
-  @github_url "https://github.com/SoftwareMansion/elixir-gcloud-speech-grpc"
+  @version "0.0.1"
+  @github_url "https://github.com/luiz-pereira/ex_google_stt"
 
   def project do
     [
-      app: :gcloud_speech_grpc,
+      app: :ex_google_stt,
       version: @version,
-      elixir: "~> 1.8",
+      elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       elixirc_paths: elixirc_paths(Mix.env()),
-      # hex
-      description: "Elixir client for Google Cloud Speech-to-Text API using gRPC",
+      description: "Elixir client for Google Speech-to-Text streaming API using gRPC",
       package: package(),
-
-      # docs
-      name: "Google Cloud Speech gRPC API",
+      name: "Google Speech gRPC API",
       source_url: @github_url,
       docs: docs()
     ]
@@ -45,8 +42,7 @@ defmodule GCloud.SpeechAPI.MixProject do
 
   defp package do
     [
-      maintainers: ["Bartosz Błaszków"],
-      licenses: ["Apache 2.0"],
+      maintainers: ["Luiz Pereira"],
       links: %{
         "GitHub" => @github_url
       }
@@ -67,7 +63,7 @@ defmodule GCloud.SpeechAPI.MixProject do
         ]
       ],
       nest_modules_by_prefix: [
-        GCloud.SpeechAPI,
+        ExGoogleSTT,
         Google.Cloud.Speech.V1,
         Google.Longrunning,
         Google.Protobuf,
