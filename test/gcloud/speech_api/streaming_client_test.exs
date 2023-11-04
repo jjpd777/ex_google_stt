@@ -54,7 +54,7 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
     assert [%SpeechRecognitionAlternative{transcript: transcript}] = alternative
 
     assert transcript ==
-             "Adventure 1 a scandal in Bohemia from the Adventures of Sherlock Holmes by Sir Arthur Conan Doyle"
+             "Adventure one a scandal in Bohemia from the Adventures of Sherlock Holmes by Sir Arthur Conan Doyle"
   end
 
   @tag :external
@@ -90,7 +90,7 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
     assert [%SpeechRecognitionAlternative{transcript: transcript}] = alternative
 
     assert transcript ==
-             "Adventure 1 a scandal in Bohemia from the Adventures of Sherlock Holmes by Sir Arthur Conan Doyle"
+             "Adventure one a scandal in Bohemia from the Adventures of Sherlock Holmes by Sir Arthur Conan Doyle"
   end
 
   test "shoutdown on monitored process down" do

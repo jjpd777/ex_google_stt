@@ -1,18 +1,17 @@
 defmodule GCloud.SpeechAPI do
-  @api_url "speech.googleapis.com"
-  @api_port 443
-  @token_scope "https://www.googleapis.com/auth/cloud-platform"
-
   @doc """
   Connects to a Google Cloud Speech-to-Text API
   """
   @spec connect() :: {:ok, GRPC.Channel.t()}
   def connect() do
-    cred = GRPC.Credential.new(ssl: [cacerts: :certifi.cacerts()])
-    gun_opts = %{http2_opts: %{keepalive: :infinity}}
+    cred = GRPC.Credential.new(ssl: [cacerts: :certifi.cacerts(), verify: :verify_none])
+    gun_opts = [http2_opts: %{keepalive: :infinity}]
+
+    api_port = 443
+    api_url = "speech.googleapis.com"
 
     with {:ok, channel} <-
-           GRPC.Stub.connect(@api_url, @api_port, cred: cred, adapter_opts: gun_opts) do
+           GRPC.Stub.connect(api_url, api_port, cred: cred, adapter_opts: gun_opts) do
       {:ok, channel}
     end
   end
@@ -24,13 +23,14 @@ defmodule GCloud.SpeechAPI do
   def request_opts() do
     [
       metadata: authorization_header(),
-      content_type: "application/grpc",
       timeout: :infinity
     ]
   end
 
   defp authorization_header do
-    with {:ok, token} <- Goth.Token.for_scope(@token_scope) do
+    credentials = Application.get_env(:goth, :json) |> Jason.decode!()
+
+    with {:ok, token} <- Goth.Token.fetch(source: {:service_account, credentials}) do
       %{"authorization" => "#{token.type} #{token.token}"}
     end
   end
