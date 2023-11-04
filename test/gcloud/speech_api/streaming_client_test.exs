@@ -22,8 +22,8 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
 
   @sound_fixture_path "../../support/fixtures/sample.flac" |> Path.expand(__DIR__)
 
-  @tag :external
   describe "Testing external api calls" do
+    @describetag :integration
     test "recognize in parts" do
       cfg = %RecognitionConfig{
         audio_channel_count: 1,
