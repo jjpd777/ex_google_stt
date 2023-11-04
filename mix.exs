@@ -11,7 +11,7 @@ defmodule GCloud.SpeechAPI.MixProject do
       elixir: "~> 1.8",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-
+      elixirc_paths: elixirc_paths(Mix.env()),
       # hex
       description: "Elixir client for Google Cloud Speech-to-Text API using gRPC",
       package: package(),
@@ -22,6 +22,9 @@ defmodule GCloud.SpeechAPI.MixProject do
       docs: docs()
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   def application do
     [
