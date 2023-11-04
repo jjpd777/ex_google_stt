@@ -1,4 +1,4 @@
-defmodule GCloud.Fixtures.Recognize do
+defmodule ExGoogleSTT.Fixtures do
   def interim_results do
     [
       "advanced",
