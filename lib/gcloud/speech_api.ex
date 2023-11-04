@@ -1,4 +1,8 @@
 defmodule GCloud.SpeechAPI do
+  @moduledoc """
+  Main module of the library. It provides a high-level API for Google Cloud Speech-to-Text API.
+  """
+
   @doc """
   Connects to a Google Cloud Speech-to-Text API
   """
@@ -6,14 +10,10 @@ defmodule GCloud.SpeechAPI do
   def connect() do
     cred = GRPC.Credential.new(ssl: [cacerts: :certifi.cacerts(), verify: :verify_none])
     gun_opts = [http2_opts: %{keepalive: :infinity}]
-
     api_port = 443
     api_url = "speech.googleapis.com"
 
-    with {:ok, channel} <-
-           GRPC.Stub.connect(api_url, api_port, cred: cred, adapter_opts: gun_opts) do
-      {:ok, channel}
-    end
+    GRPC.Stub.connect(api_url, api_port, cred: cred, adapter_opts: gun_opts)
   end
 
   @doc """
