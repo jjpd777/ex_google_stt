@@ -1,18 +1,17 @@
 # Google Cloud Speech gRPC API client
 
-[![Hex.pm](https://img.shields.io/hexpm/v/gcloud_speech_grpc.svg)](https://hex.pm/packages/gcloud_speech_grpc)
-[![CircleCI](https://circleci.com/gh/SoftwareMansion/elixir-gcloud-speech-grpc.svg?style=svg)](https://circleci.com/gh/SoftwareMansion/elixir-gcloud-speech-grpc)
+[![Hex.pm](https://img.shields.io/hexpm/v/ex_google_stt.svg)](https://hex.pm/packages/ex_google_stt)
 
-Elixir client for Google Cloud Speech-to-Text API using gRPC
+Elixir client for Google Speech-to-Text streaming API using gRPC
 
 ## Installation
 
-The package can be installed by adding `:gcloud_speech_grpc` to your list of dependencies in `mix.exs`:
+The package can be installed by adding `:ex_google_stt` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:gcloud_speech_grpc, "~> 0.4.0"}
+    {:ex_google_stt, "~> 0.0.1"}
   ]
 end
 ```
@@ -21,8 +20,8 @@ end
 
 This library uses [`Goth`](https://github.com/peburrows/goth) to obtain authentication tokens. It requires Google Cloud credendials to be configured. See [Goth's README](https://github.com/peburrows/goth#installation) for details.
 
-Tests with tag `:external` communicate with Google APIs and require such config, thus are
-excluded by default, use `mix test --include external` to run them.
+Tests with tag `:integration` communicate with Google APIs and require such config, thus are
+excluded by default, use `mix test --include integration` to run them.
 
 ## Usage example
 
@@ -34,7 +33,7 @@ alias Google.Cloud.Speech.V1.{
   StreamingRecognizeResponse
 }
 
-alias GCloud.SpeechAPI.Streaming.Client
+alias ExGoogleSTT.StreamingServer
 
 cfg =
   RecognitionConfig.new(
@@ -56,7 +55,7 @@ str_cfg_req =
   )
 
 <<part_a::binary-size(48277), part_b::binary-size(44177),
-  part_c::binary>> = File.read!("test/fixtures/sample.flac")
+  part_c::binary>> = File.read!("test/support/fixtures/sample.flac")
 
 content_reqs =
   [part_a, part_b, part_c] |> Enum.map(fn data ->
@@ -104,10 +103,38 @@ A recording fragment in `test/fixtures` comes from an audiobook
 
 Current version of library supports only Streaming API, regular and LongRunning are not implemented
 
-## Copyright and License
+<!-- TODO: Decide which license to use -->
+## License
 
-Copyright 2019, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=elixir-gcloud-speech-to-text)
+This project includes modified code from [Original Project or Code Name], which is licensed under the Apache License 2.0 (the "License"). You may not use the files containing modifications from the original project except in compliance with the License. A copy of the License is included in this project in the file named `LICENSE`.
 
-[![Software Mansion](https://membraneframework.github.io/static/logo/swm_logo_readme.png)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=elixir-gcloud-speech-to-text)
+### Apache License 2.0
 
-Licensed under the [Apache License, Version 2.0](LICENSE)
+The original work is available at [link to the original repository or project homepage].
+
+Portions of this project are modifications based on work created by [![Software Mansion](https://membraneframework.github.io/static/logo/swm_logo_readme.png)](https://swmansion.com/) and used according to terms described in the Apache License 2.0. See [here](https://github.com/software-mansion-labs/elixir-gcloud-speech-grpc) for the original repository.
+
+The modifications are licensed under [Your New License], which is [brief description of your license, including how it differs from Apache 2.0, if applicable].
+
+A copy of [Your New License] is included in this project in the file named `YOUR_LICENSE_FILE`.
+
+### Changes Made
+
+A summary of changes made to the original source:
+- [Date] Description of modifications made (by [Your Name or Your Organization])
+- [Date] Further changes or additions (by [Your Name or Your Organization])
+
+*Please refer to the commit history for a complete list of changes.*
+
+## Contributing
+
+[If you wish to accept contributions from others, provide instructions on how they should do so. This could include the process for submitting pull requests, code of conduct, and other relevant processes for your project.]
+
+## Disclaimer
+
+While this project includes modified code from [Original Project or Code Name], it is not endorsed by or affiliated with the original authors or their organizations.
+
+## Contact
+
+For questions and support regarding this project, please contact [Your Contact Information].
+
