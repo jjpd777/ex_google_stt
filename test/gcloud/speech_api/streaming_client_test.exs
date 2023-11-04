@@ -13,12 +13,12 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
   @module GCloud.SpeechAPI.Streaming.Client
 
   @tag :external
-  test "regcognize in parts" do
+  test "recognize in parts" do
     cfg = %RecognitionConfig{
       audio_channel_count: 1,
       encoding: :FLAC,
       language_code: "en-GB",
-      sample_rate_hertz: 16000
+      sample_rate_hertz: 16_000
     }
 
     str_cfg = %StreamingRecognitionConfig{config: cfg, interim_results: false}
@@ -27,7 +27,7 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
 
     fixture_path = "../../fixtures/sample.flac" |> Path.expand(__DIR__)
 
-    <<part_a::binary-size(48277), part_b::binary-size(44177), part_c::binary>> =
+    <<part_a::binary-size(48_277), part_b::binary-size(44_177), part_c::binary>> =
       File.read!(fixture_path)
 
     content_reqs =
@@ -58,12 +58,12 @@ defmodule GCloud.SpeechAPI.Streaming.ClientTest do
   end
 
   @tag :external
-  test "regcognize in one request and include sender" do
+  test "recognize in one request and include sender" do
     cfg = %RecognitionConfig{
       audio_channel_count: 1,
       encoding: :FLAC,
       language_code: "en-GB",
-      sample_rate_hertz: 16000
+      sample_rate_hertz: 16_000
     }
 
     str_cfg = %StreamingRecognitionConfig{config: cfg, interim_results: false}

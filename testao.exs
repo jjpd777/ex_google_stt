@@ -12,7 +12,7 @@ cfg =
     audio_channel_count: 1,
     encoding: :FLAC,
     language_code: "en-GB",
-    sample_rate_hertz: 16000
+    sample_rate_hertz: 16_000
   )
 
 str_cfg =

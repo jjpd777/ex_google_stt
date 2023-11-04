@@ -31,11 +31,12 @@ defmodule GCloud.SpeechAPI.MixProject do
 
   defp deps do
     [
+      {:certifi, "~> 2.12"},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.27", only: :dev, runtime: false},
       {:goth, "~> 1.3"},
-      {:protobuf, "~> 0.12"},
       {:grpc, "~> 0.7"},
-      {:certifi, "~> 2.12"}
+      {:protobuf, "~> 0.12"}
     ]
   end
 
