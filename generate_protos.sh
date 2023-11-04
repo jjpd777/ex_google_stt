@@ -17,7 +17,7 @@ PROTOS="\
   google/protobuf/wrappers.proto \
 "
 
-protoc -I ./googleapis --elixir_out=plugins=grpc:./lib $PROTOS
+protoc -I ./googleapis --elixir_out=plugins=grpc:./lib/protos $PROTOS
 
 cd lib
 for proto in $PROTOS; do
