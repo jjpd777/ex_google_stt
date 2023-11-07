@@ -1,7 +1,7 @@
 defmodule ExGoogleSTT.StreamingServerTest do
   use ExUnit.Case, async: true
 
-  alias Google.Cloud.Speech.V1.{
+  alias Google.Cloud.Speech.V2.{
     RecognitionConfig,
     SpeechRecognitionAlternative,
     StreamingRecognitionConfig,
@@ -14,47 +14,39 @@ defmodule ExGoogleSTT.StreamingServerTest do
   alias ExGoogleSTT.Fixtures
 
   @recognition_cfg %RecognitionConfig{
-    audio_channel_count: 1,
-    encoding: :FLAC,
-    language_code: "en-GB",
-    sample_rate_hertz: 16_000
+    decoding_config: {:auto_decoding_config, %Google.Cloud.Speech.V2.AutoDetectDecodingConfig{}},
+    model: "long",
+    language_codes: ["en-GB"],
+    features: %{enable_automatic_punctuation: true}
   }
+  creds_json = Application.compile_env(:goth, :json)
+  Jason.decode!(creds_json)["project_id"]
 
-  @sound_fixture_path "./support/fixtures/sample.flac" |> Path.expand(__DIR__)
+  @recognizer "projects/#{Jason.decode!(creds_json)["project_id"]}/locations/global/recognizers/_"
 
   describe "Testing external api calls" do
     @describetag :integration
     test "recognize in parts" do
-      cfg = %RecognitionConfig{
-        audio_channel_count: 1,
-        encoding: :FLAC,
-        language_code: "en-GB",
-        sample_rate_hertz: 16_000
+      str_cfg = %StreamingRecognitionConfig{config: @recognition_cfg}
+
+      str_cfg_req = %StreamingRecognizeRequest{
+        streaming_request: {:streaming_config, str_cfg},
+        recognizer: @recognizer
       }
 
-      str_cfg = %StreamingRecognitionConfig{config: cfg, interim_results: false}
-
-      str_cfg_req = %StreamingRecognizeRequest{streaming_request: {:streaming_config, str_cfg}}
-
-      <<part_a::binary-size(48_277), part_b::binary-size(44_177), part_c::binary>> =
-        File.read!(@sound_fixture_path)
-
       content_reqs =
-        [part_a, part_b, part_c]
+        Fixtures.chunked_audio_bytes()
         |> Enum.map(fn data ->
-          %StreamingRecognizeRequest{streaming_request: {:audio_content, data}}
+          %StreamingRecognizeRequest{streaming_request: {:audio, data}, recognizer: @recognizer}
         end)
 
       assert {:ok, client} = StreamingServer.start_link()
       client |> StreamingServer.send_request(str_cfg_req)
 
-      content_reqs
-      |> Enum.each(fn stream_audio_req ->
-        StreamingServer.send_request(
-          client,
-          stream_audio_req
-        )
-      end)
+      StreamingServer.send_requests(
+        client,
+        content_reqs
+      )
 
       StreamingServer.end_stream(client)
 
@@ -63,50 +55,33 @@ defmodule ExGoogleSTT.StreamingServerTest do
       assert [%SpeechRecognitionAlternative{transcript: transcript}] = alternative
 
       assert transcript ==
-               "Adventure one a scandal in Bohemia from the Adventures of Sherlock Holmes by Sir Arthur Conan Doyle"
-    end
-
-    test "recognize in one request and include sender" do
-      str_cfg = %StreamingRecognitionConfig{config: @recognition_cfg, interim_results: false}
-      str_cfg_req = %StreamingRecognizeRequest{streaming_request: {:streaming_config, str_cfg}}
-
-      data = File.read!(@sound_fixture_path)
-      stream_audio_req = %StreamingRecognizeRequest{streaming_request: {:audio_content, data}}
-
-      assert {:ok, client} = StreamingServer.start_link(include_sender: true)
-      client |> StreamingServer.send_request(str_cfg_req)
-
-      StreamingServer.send_request(
-        client,
-        stream_audio_req
-      )
-
-      StreamingServer.end_stream(client)
-
-      assert_receive {^client, %StreamingRecognizeResponse{results: results}}, 5000
-      assert [%StreamingRecognitionResult{alternatives: alternative}] = results
-      assert [%SpeechRecognitionAlternative{transcript: transcript}] = alternative
-
-      assert transcript ==
-               "Adventure one a scandal in Bohemia from the Adventures of Sherlock Holmes by Sir Arthur Conan Doyle"
+               "Adventure 1 a scandal in Bohemia from the Adventures of Sherlock Holmes by Sir Arthur Conan Doyle"
     end
 
     test "interim results" do
-      str_cfg = %StreamingRecognitionConfig{config: @recognition_cfg, interim_results: true}
-      str_cfg_req = %StreamingRecognizeRequest{streaming_request: {:streaming_config, str_cfg}}
+      str_cfg = %StreamingRecognitionConfig{
+        config: @recognition_cfg,
+        streaming_features: %{enable_voice_activity_events: true, interim_results: true}
+      }
 
-      data = File.read!(@sound_fixture_path)
-      stream_audio_req = %StreamingRecognizeRequest{streaming_request: {:audio_content, data}}
+      str_cfg_req = %StreamingRecognizeRequest{
+        streaming_request: {:streaming_config, str_cfg},
+        recognizer: @recognizer
+      }
+
+      requests =
+        Fixtures.chunked_audio_bytes()
+        |> Enum.map(fn data ->
+          %StreamingRecognizeRequest{streaming_request: {:audio, data}, recognizer: @recognizer}
+        end)
 
       assert {:ok, client} = StreamingServer.start_link(include_sender: true)
       client |> StreamingServer.send_request(str_cfg_req)
 
-      StreamingServer.send_request(
+      StreamingServer.send_requests(
         client,
-        stream_audio_req
+        requests
       )
-
-      StreamingServer.end_stream(client)
 
       %{last_response: last_response, interim_results: interim_results} =
         capture_interim_responses(client)
@@ -116,13 +91,16 @@ defmodule ExGoogleSTT.StreamingServerTest do
       assert_interim_results(interim_results)
 
       assert final_transcript ==
-               "Adventure one a scandal in Bohemia from the Adventures of Sherlock Holmes by Sir Arthur Conan Doyle"
+               "Adventure 1 a scandal in Bohemia from the Adventures of Sherlock Holmes by Sir Arthur Conan Doyle"
+
+      StreamingServer.end_stream(client)
     end
   end
 
   defp capture_interim_responses(client, interim_results \\ []) do
-    assert_receive {^client, %StreamingRecognizeResponse{results: results}}, 5000
-    parsed_results = parse_results(results)
+    assert_receive {^client, %StreamingRecognizeResponse{} = response}, 5000
+
+    parsed_results = parse_results(response.results)
     interim_results = interim_results ++ parsed_results
 
     if last_response = Enum.find(parsed_results, & &1.is_final) do
@@ -161,7 +139,7 @@ defmodule ExGoogleSTT.StreamingServerTest do
     assert matches / length(expected_interims) >= 0.9
   end
 
-  test "shoutdown on monitored process down" do
+  test "shutdown on monitored process down" do
     target = self()
 
     task =

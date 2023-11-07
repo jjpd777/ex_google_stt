@@ -35,7 +35,7 @@ defmodule ExGoogleSTT.StreamingServer do
 
   alias ExGoogleSTT.GrpcSpeechClient
 
-  alias Google.Cloud.Speech.V1.{
+  alias Google.Cloud.Speech.V2.{
     StreamingRecognizeRequest,
     StreamingRecognizeResponse,
     SpeechRecognitionAlternative,
@@ -147,12 +147,6 @@ defmodule ExGoogleSTT.StreamingServer do
 
   @impl true
   def handle_info(%StreamingRecognizeResponse{} = response, state) do
-    %{start_time: start_time} = state
-
-    response =
-      response
-      |> Map.update!(:results, &Enum.map(&1, fn res -> update_result_time(res, start_time) end))
-
     if state.include_sender do
       send(state.target, {self(), response})
     else
