@@ -8,23 +8,23 @@ defmodule ExGoogleSTT.StreamingServer do
   ## Requests
 
   The requests can be sent using `send_request/3`. Each request should be a
-  `t:Google.Cloud.Speech.V1.StreamingRecognizeRequest.t/0` struct created using
-  `Google.Cloud.Speech.V1.StreamingRecognizeRequest.new/1` accepting keyword with struct fields.
+  `t:Google.Cloud.Speech.V2.StreamingRecognizeRequest.t/0` struct created using
+  `Google.Cloud.Speech.V2.StreamingRecognizeRequest.new/1` accepting keyword with struct fields.
   This is an auto-generated module, so check out [this notice](readme.html#auto-generated-modules) and
-  [API reference](https://cloud.google.com/speech-to-text/docs/reference/rpc/google.cloud.speech.v1#google.cloud.speech.v1.StreamingRecognizeRequest)
+  [API reference](https://cloud.google.com/speech-to-text/docs/reference/rpc/google.cloud.speech.V2#google.cloud.speech.V2.StreamingRecognizeRequest)
 
   ## Responses
 
   The client sends responses from API via messages to the target (by default it is the process that spawned client).
-  Each message is a struct `t:Google.Cloud.Speech.V1.StreamingRecognizeResponse.t/0` or a tuple with pid of sender and the same struct. Message format is controlled by `include_sender` option of a client.
+  Each message is a struct `t:Google.Cloud.Speech.V2.StreamingRecognizeResponse.t/0` or a tuple with pid of sender and the same struct. Message format is controlled by `include_sender` option of a client.
 
   ## Usage
 
   1. Start the client
-  1. Send request with `Google.Cloud.Speech.V1.StreamingRecognitionConfig`
-  1. Send request(s) with `Google.Cloud.Speech.V1.RecognitionAudio` containing audio data
-  1. (async) Receive messages conatining `Google.Cloud.Speech.V1.StreamingRecognizeResponse`
-  1. Send final `Google.Cloud.Speech.V1.RecognitionAudio` with option `end_stream: true`
+  1. Send request with `Google.Cloud.Speech.V2.StreamingRecognitionConfig`
+  1. Send request(s) with `Google.Cloud.Speech.V2.RecognitionAudio` containing audio data
+  1. (async) Receive messages conatining `Google.Cloud.Speech.V2.StreamingRecognizeResponse`
+  1. Send final `Google.Cloud.Speech.V2.RecognitionAudio` with option `end_stream: true`
      or call `end_stream/1` after final audio chunk has been sent.
   1. Stop the client after receiving all results
 
@@ -35,16 +35,10 @@ defmodule ExGoogleSTT.StreamingServer do
 
   alias ExGoogleSTT.GrpcSpeechClient
 
-  alias Google.Cloud.Speech.V1.{
+  alias Google.Cloud.Speech.V2.{
     StreamingRecognizeRequest,
-    StreamingRecognizeResponse,
-    SpeechRecognitionAlternative,
-    WordInfo
+    StreamingRecognizeResponse
   }
-
-  alias Google.Protobuf.Duration
-
-  @nanos_per_second 1_000_000_000
 
   @typedoc "Format of messages sent by the client to the target"
   @type message :: StreamingRecognizeResponse.t() | {pid(), StreamingRecognizeResponse.t()}
@@ -81,7 +75,6 @@ defmodule ExGoogleSTT.StreamingServer do
       |> Map.put_new(:target, self())
       |> Map.put_new(:monitor_target, false)
       |> Map.put_new(:include_sender, false)
-      |> Map.put_new(:start_time, 0)
 
     apply(GenServer, fun, [__MODULE__, options])
   end
@@ -147,12 +140,6 @@ defmodule ExGoogleSTT.StreamingServer do
 
   @impl true
   def handle_info(%StreamingRecognizeResponse{} = response, state) do
-    %{start_time: start_time} = state
-
-    response =
-      response
-      |> Map.update!(:results, &Enum.map(&1, fn res -> update_result_time(res, start_time) end))
-
     if state.include_sender do
       send(state.target, {self(), response})
     else
@@ -170,31 +157,5 @@ defmodule ExGoogleSTT.StreamingServer do
   @impl true
   def terminate(_reason, state) do
     state.conn |> GrpcSpeechClient.stop()
-  end
-
-  defp update_result_time(result, start_time) when is_integer(start_time) do
-    result
-    |> Map.update!(:result_end_time, &duration_sum(&1, start_time))
-    |> Map.update!(:alternatives, &update_alternatives(&1, start_time))
-  end
-
-  defp update_alternatives(alternatives, start_time) do
-    alternatives |> Enum.map(&update_alternative(&1, start_time))
-  end
-
-  defp update_alternative(%SpeechRecognitionAlternative{words: words} = alt, start_time) do
-    updated_words =
-      words
-      |> Enum.map(fn %WordInfo{} = info ->
-        info
-        |> Map.update!(:start_time, &duration_sum(&1, start_time))
-        |> Map.update!(:end_time, &duration_sum(&1, start_time))
-      end)
-
-    %{alt | words: updated_words}
-  end
-
-  defp duration_sum(%Duration{} = a, b) when is_integer(b) do
-    b + a.nanos + a.seconds * @nanos_per_second
   end
 end

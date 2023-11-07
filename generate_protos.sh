@@ -5,7 +5,7 @@ set -e
 rm -rf lib/google
 
 PROTOS="\
-  google/cloud/speech/v1/cloud_speech.proto \
+  google/cloud/speech/v2/cloud_speech.proto \
   google/longrunning/operations.proto \
   google/rpc/status.proto \
   google/rpc/code.proto \

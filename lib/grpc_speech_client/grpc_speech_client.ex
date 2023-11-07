@@ -6,8 +6,8 @@ defmodule ExGoogleSTT.GrpcSpeechClient do
   # would consume any messages that should be parsed by `recv`
 
   alias ExGoogleSTT.GrpcSpeechClient.Connection
-  alias Google.Cloud.Speech.V1.Speech.Stub, as: SpeechStub
-  alias Google.Cloud.Speech.V1.StreamingRecognizeRequest
+  alias Google.Cloud.Speech.V2.Speech.Stub, as: SpeechStub
+  alias Google.Cloud.Speech.V2.StreamingRecognizeRequest
 
   require Logger
 
