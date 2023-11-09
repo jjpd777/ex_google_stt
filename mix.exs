@@ -25,6 +25,7 @@ defmodule ExGoogleSTT.MixProject do
 
   def application do
     [
+      mod: {ExGoogleSTT.Application, []},
       extra_applications: [:logger]
     ]
   end
