@@ -1,4 +1,4 @@
-defmodule ExGoogleSTT.GrpcSpeechClient do
+defmodule ExGoogleSTT.StreamingServer.GrpcSpeechClient do
   @moduledoc false
   # This module wraps a crappy API of gRPC library that has a call reading
   # the process mailbox - `GRPC.Stub.recv/2`.
@@ -15,17 +15,8 @@ defmodule ExGoogleSTT.GrpcSpeechClient do
 
   @spec start_link(target :: pid()) :: {:ok, pid} | {:error, any()}
   def start_link(target \\ self()) do
-    do_start(:spawn_link, target)
-  end
-
-  @spec start(target :: pid()) :: {:ok, pid} | {:error, any()}
-  def start(target \\ self()) do
-    do_start(:spawn, target)
-  end
-
-  defp do_start(fun, target) do
     with {:ok, channel} <- Connection.connect() do
-      pid = apply(Kernel, fun, [__MODULE__, :init, [channel, target]])
+      pid = spawn_link(__MODULE__, :init, [channel, target])
       {:ok, pid}
     end
   end

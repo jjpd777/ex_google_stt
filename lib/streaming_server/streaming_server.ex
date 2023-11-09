@@ -51,32 +51,21 @@ defmodule ExGoogleSTT.StreamingServer do
   - `monitor_target` - If set to true, a client will monitor the target and shutdown
   if the target is down
   - `include_sender` - If true, a client will include its pid in messages sent to the target.
-  - `start_time` - Time by which response times will be shifted in nanoseconds. Defaults to `0` ns.
   """
   @spec start_link(options :: Keyword.t()) :: {:ok, pid} | {:error, any()}
   def start_link(options \\ []) do
-    do_start(:start_link, options)
-  end
+    default_options = %{
+      monitor_target: true,
+      end_on_final_true: true,
+      target: self()
+    }
 
-  @doc """
-  Starts a client process without links.
-
-  See `start_link/1` for more info
-  """
-  @spec start(options :: Keyword.t()) :: {:ok, pid} | {:error, any()}
-  def start(options \\ []) do
-    do_start(:start, options)
-  end
-
-  defp do_start(fun, options) do
     options =
       options
       |> Map.new()
-      |> Map.put_new(:target, self())
-      |> Map.put_new(:monitor_target, false)
-      |> Map.put_new(:include_sender, false)
+      |> Map.merge(default_options)
 
-    apply(GenServer, fun, [__MODULE__, options])
+    GenServer.start_link(__MODULE__, options)
   end
 
   @doc """
@@ -116,14 +105,13 @@ defmodule ExGoogleSTT.StreamingServer do
 
   @impl true
   def init(opts) do
-    {:ok, conn} = GrpcSpeechClient.start_link()
-    state = opts |> Map.merge(%{conn: conn})
+    with {:ok, grpc_client} <- GrpcSpeechClient.start_link() do
+      if opts.monitor_target do
+        Process.monitor(opts.target)
+      end
 
-    if opts.monitor_target do
-      Process.monitor(opts.target)
+      {:ok, %{options | grpc_client: grpc_client}}
     end
-
-    {:ok, state}
   end
 
   @impl true
