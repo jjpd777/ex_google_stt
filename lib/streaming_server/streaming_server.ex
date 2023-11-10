@@ -33,9 +33,12 @@ defmodule ExGoogleSTT.StreamingServer do
 
   use GenServer
 
+  alias Google.Cloud.Speech.V2.RecognitionConfig
   alias ExGoogleSTT.GrpcSpeechClient
 
   alias Google.Cloud.Speech.V2.{
+    RecognitionConfig,
+    StreamingRecognitionConfig,
     StreamingRecognizeRequest,
     StreamingRecognizeResponse
   }
@@ -48,25 +51,28 @@ defmodule ExGoogleSTT.StreamingServer do
 
   Possible options are:
   - `target` - A pid of a process that will receive recognition results. Defaults to `self()`.
-  - `monitor_target` - If set to true, a client will monitor the target and shutdown
-  if the target is down
-  - `include_sender` - If true, a client will include its pid in messages sent to the target.
   """
-  @spec start_link(options :: Keyword.t()) :: {:ok, pid} | {:error, any()}
-  def start_link(options \\ []) do
-    default_options = %{
-      monitor_target: true,
-      end_on_final_true: true,
-      target: self()
-    }
-
-    options =
-      options
-      |> Map.new()
-      |> Map.merge(default_options)
-
-    GenServer.start_link(__MODULE__, options)
+  @spec start_link(target :: pid()) :: {:ok, pid} | {:error, any()}
+  def start_link(target: target) do
+    GenServer.start_link(__MODULE__, %{target: target})
   end
+
+  # raise_on_missing_stream_config(options)
+  # defp maybe_raise_on_missing_config(%{
+  #        streaming_config: %StreamingRecognitionConfig{
+  #          config: %RecognitionConfig{} = recognition_config
+  #        }
+  #      }) do
+  #   all_there? =
+  #     Enum.all?(
+  #       [:decoding_config, :model, :language_codes, :features],
+  #       is_map_key(recognition_config)
+  #     )
+
+  #   all_there? || raise "Missing required fields in recognition config"
+  # end
+
+  # defp maybe_raise_on_missing_config(_), do: nil
 
   @doc """
   Stops a client process.
@@ -104,12 +110,9 @@ defmodule ExGoogleSTT.StreamingServer do
   end
 
   @impl true
-  def init(opts) do
+  def init(%{target: target} = options) do
     with {:ok, grpc_client} <- GrpcSpeechClient.start_link() do
-      if opts.monitor_target do
-        Process.monitor(opts.target)
-      end
-
+      Process.monitor(target)
       {:ok, %{options | grpc_client: grpc_client}}
     end
   end
