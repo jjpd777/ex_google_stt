@@ -6,8 +6,6 @@ defmodule ExGoogleSTT.Grpc.StreamClientTest do
 
   alias ExGoogleSTT.Grpc.StreamClient
 
-  @moduletag :integration
-
   setup do
     original_env = Application.get_env(:goth, :json)
 
