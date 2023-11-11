@@ -45,7 +45,8 @@ defmodule ExGoogleSTT.MixProject do
       maintainers: ["Luiz Pereira"],
       links: %{
         "GitHub" => @github_url
-      }
+      },
+      licenses: ["Apache 2.0"]
     ]
   end
 
