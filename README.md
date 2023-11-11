@@ -2,7 +2,7 @@
 
 [![Hex.pm](https://img.shields.io/hexpm/v/ex_google_stt.svg)](https://hex.pm/packages/ex_google_stt)
 
-Elixir client for Google Speech-to-Text streaming API using gRPC
+Elixir client for Google Speech-to-Text V2 streaming API using gRPC
 
 ## Installation
 
@@ -23,76 +23,78 @@ This library uses [`Goth`](https://github.com/peburrows/goth) to obtain authenti
 Tests with tag `:integration` communicate with Google APIs and require such config, thus are
 excluded by default, use `mix test --include integration` to run them.
 
-## Usage example
+## Usage
 
+### Introduction
+Here's the basic flow:
+
+#### Create your Genserver
+A Genserver is required to that the `StreamingServer` can send the transcriptions back to the caller. This is captured via a `handle_info`
+
+#### Build the configurations
 ```elixir
-alias Google.Cloud.Speech.V1.{
-  RecognitionConfig,
-  StreamingRecognitionConfig,
-  StreamingRecognizeRequest,
-  StreamingRecognizeResponse
+recognizer = "projects/["project_id"]/locations/global/recognizers/_"
+
+cfg = %RecognitionConfig{
+  decoding_config:
+    {:auto_decoding_config, %Google.Cloud.Speech.V2.AutoDetectDecodingConfig{}},
+  model: "long",
+  language_codes: ["en-GB"],
+  features: %{enable_automatic_punctuation: true}
 }
 
-alias ExGoogleSTT.StreamingServer
+str_cfg = %StreamingRecognitionConfig{
+  config: cfg,
+  streaming_features: %{interim_results: true}
+}
 
-cfg =
-  RecognitionConfig.new(
-    audio_channel_count: 1,
-    encoding: :FLAC,
-    language_code: "en-GB",
-    sample_rate_hertz: 16_000
-  )
+str_cfg_req = %StreamingRecognizeRequest{
+  streaming_request: {:streaming_config, str_cfg},
+  recognizer: @recognizer
+}
+```
+#### Start the server
+- Start the `StreamingServer` with `start_link`
+- Send the configuration request. This must always be the first request.
+```elixir
+{:ok, transcription_server} = StreamingServer.start_link()
+StreamingServer.send_config(transcription_server, str_cfg_req)
+```
 
-str_cfg =
-  StreamingRecognitionConfig.new(
-    config: cfg,
-    interim_results: false
-  )
+#### Send Requests
+```elixir
+request = %StreamingRecognizeRequest{streaming_request: {:audio, data}, recognizer: recognizer}
 
-str_cfg_req =
-  StreamingRecognizeRequest.new(
-    streaming_request: {:streaming_config, str_cfg}
-  )
+StreamingServer.send_request(transcription_server, request)
+```
 
-<<part_a::binary-size(48277), part_b::binary-size(44177),
-  part_c::binary>> = File.read!("test/support/fixtures/sample.flac")
+#### Receive Responses
+This is done in the original caller.
+You can also include this in a `Phoenix.Channel`.
 
-content_reqs =
-  [part_a, part_b, part_c] |> Enum.map(fn data ->
-    StreamingRecognizeRequest.new(
-      streaming_request: {:audio_content, data}
-    )
+```elixir
+def handle_info(%StreamingRecognizeResponse{} = response, state) do
+  results = response.results
+  transcripts = Enum.map(results, fn result ->
+    [alternative] = result.alternatives
+      %{content: alternative.transcript, is_final: result.is_final}
   end)
-
-{:ok, client} = Client.start_link()
-client |> Client.send_request(str_cfg_req)
-
-content_reqs |> Enum.each(fn stream_audio_req ->
-  Client.send_request(
-    client,
-    stream_audio_req
-  )
-end)
-
-Client.end_stream(client)
-
-receive do
-  %StreamingRecognizeResponse{results: results} ->
-    IO.inspect(results)
 end
 ```
+
+### Infinite stream
+Google's STT V2 knows when a sentence finishes, as long as there's some silence after it. When that happens, it'll return the transcription without ending the stream.
+
+Therefore, as long as we keep the stream open, we can keep transcribing realtime speech.
+
+A few points to notice though.
+- The `model` must be `long` or `latest_long`. `short` will result in ending the stream after the first utterance.
+- One must end the stream to ensure the transcription stops.
+
 
 ## Auto-generated modules
 
 This library uses [`protobuf-elixir`](https://github.com/tony612/protobuf-elixir) and its `protoc-gen-elixir` plugin to generate Elixir modules from `*.proto` files for Google's Speech gRPC API. The documentation for the types defined in `*.proto` files can be found [here](https://cloud.google.com/speech-to-text/docs/reference/rpc/google.cloud.speech.v1)
-
-### Mapping between Protobuf types and Elixir modules
-
-Since the auto-generated modules have poor typing and no docs, the mapping may not be obvious. Here are some clues about how to use them:
-
-* Structs defined in these modules should be created with `new/1` function accepting keyword list with values for fields
-* when message field is an union field, it should be set to a tuple with atom indicating content of this field and an actual value, e.g. for `StreamingRecognizeRequest` the field `streaming_request` can be set to either `{:streaming_config, config}` or `{:audio_content, "binary_with_audio_data"}`
-* Fields of enum types can be set to an integer or an atom matching the enum, e.g. value of field `:audio_encoding` in `RecognitionConfig` can be set to `:FLAC` or `2`
 
 ## Fixture
 
@@ -101,40 +103,17 @@ A recording fragment in `test/fixtures` comes from an audiobook
 
 ## Status
 
-Current version of library supports only Streaming API, regular and LongRunning are not implemented
-
-<!-- TODO: Decide which license to use -->
+Current version of library supports only Streaming API and not tested in production. Treat this as experimental.
 ## License
 
 This project includes modified code from [Original Project or Code Name], which is licensed under the Apache License 2.0 (the "License"). You may not use the files containing modifications from the original project except in compliance with the License. A copy of the License is included in this project in the file named `LICENSE`.
-
-### Apache License 2.0
 
 The original work is available at [link to the original repository or project homepage].
 
 Portions of this project are modifications based on work created by [![Software Mansion](https://membraneframework.github.io/static/logo/swm_logo_readme.png)](https://swmansion.com/) and used according to terms described in the Apache License 2.0. See [here](https://github.com/software-mansion-labs/elixir-gcloud-speech-grpc) for the original repository.
 
-The modifications are licensed under [Your New License], which is [brief description of your license, including how it differs from Apache 2.0, if applicable].
-
-A copy of [Your New License] is included in this project in the file named `YOUR_LICENSE_FILE`.
-
-### Changes Made
-
-A summary of changes made to the original source:
-- [Date] Description of modifications made (by [Your Name or Your Organization])
-- [Date] Further changes or additions (by [Your Name or Your Organization])
-
-*Please refer to the commit history for a complete list of changes.*
-
-## Contributing
-
-[If you wish to accept contributions from others, provide instructions on how they should do so. This could include the process for submitting pull requests, code of conduct, and other relevant processes for your project.]
+The modifications are also licensed under Apache License 2.0.
 
 ## Disclaimer
 
 While this project includes modified code from [Original Project or Code Name], it is not endorsed by or affiliated with the original authors or their organizations.
-
-## Contact
-
-For questions and support regarding this project, please contact [Your Contact Information].
-
