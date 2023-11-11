@@ -15,7 +15,7 @@ defmodule ExGoogleSTT.StreamingServerTest do
 
   @recognition_cfg %RecognitionConfig{
     decoding_config: {:auto_decoding_config, %Google.Cloud.Speech.V2.AutoDetectDecodingConfig{}},
-    model: "long",
+    model: "latest_long",
     language_codes: ["en-GB"],
     features: %{enable_automatic_punctuation: true}
   }
@@ -41,7 +41,7 @@ defmodule ExGoogleSTT.StreamingServerTest do
         end)
 
       assert {:ok, client} = StreamingServer.start_link()
-      client |> StreamingServer.send_request(str_cfg_req)
+      client |> StreamingServer.send_config(str_cfg_req)
 
       StreamingServer.send_requests(
         client,
@@ -76,7 +76,7 @@ defmodule ExGoogleSTT.StreamingServerTest do
         end)
 
       assert {:ok, client} = StreamingServer.start_link(include_sender: true)
-      client |> StreamingServer.send_request(str_cfg_req)
+      client |> StreamingServer.send_config(str_cfg_req)
 
       StreamingServer.send_requests(
         client,
@@ -144,7 +144,7 @@ defmodule ExGoogleSTT.StreamingServerTest do
 
     task =
       Task.async(fn ->
-        send(target, {:client, StreamingServer.start(monitor_target: true)})
+        send(target, {:client, StreamingServer.start_link(monitor_target: true)})
         receive do: (:exit -> :ok)
       end)
 
