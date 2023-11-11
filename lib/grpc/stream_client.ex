@@ -4,13 +4,13 @@ defmodule ExGoogleSTT.Grpc.StreamClient do
   """
 
   alias Google.Cloud.Speech.V2.Speech.Stub, as: SpeechStub
-  alias GRPC.Client.Stream
+  alias GRPC.Client.Stream, as: GrpcStream
 
   @doc """
   Starts s Google STT streaming client
   """
-  @spec start_stream() :: {:ok, Stream.t()} | {:error, any()}
-  def start_stream() do
+  @spec start() :: {:ok, GrpcStream.t()} | {:error, any()}
+  def start() do
     with {:ok, channel} <- connect() do
       stream = SpeechStub.streaming_recognize(channel, request_opts())
       {:ok, stream}
@@ -40,6 +40,12 @@ defmodule ExGoogleSTT.Grpc.StreamClient do
 
     GRPC.Stub.connect(api_url, api_port, cred: cred, adapter: GRPC.Client.Adapters.Mint)
   end
+
+  @doc """
+  Stops a Google STT streaming client
+  """
+  @spec stop(GrpcStream.t()) :: :ok
+  def stop(stream), do: disconnect(stream.channel)
 
   @doc """
   Disconnects from Google Cloud Speech-to-Text API
