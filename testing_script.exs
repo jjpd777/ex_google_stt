@@ -50,18 +50,15 @@ content_reqs =
   GRPC.Stub.send_request(stream, Enum.at(content_reqs, 0))
   {:ok, ex_stream} = GRPC.Stub.recv(stream)
 
+  task = Task.async( fn -> ex_stream
+    |> Stream.each(&IO.inspect/1)
+    |> Stream.run() # code will be blocked until the stream end
+  end)
+
 # send rest of requests
 Enum.drop(content_reqs, 1)
 |> Enum.each(fn req ->
   GRPC.Stub.send_request(stream, req)
 end)
-
-# receive result
-Task.async(fn ->
-  ex_stream
-  |> Stream.each(&IO.inspect/1)
-  |> Stream.run() # code will be blocked until the stream end
-end)
-
 
 dbg()
