@@ -1,4 +1,8 @@
 defmodule ExGoogleSTT.Fixtures do
+  @moduledoc """
+  Fixtures for testing.
+  """
+
   alias Google.Cloud.Speech.V2.{
     StreamingRecognizeRequest,
     StreamingRecognitionConfig,
@@ -126,7 +130,8 @@ defmodule ExGoogleSTT.Fixtures do
   def streaming_recognition_config(opts \\ []) do
     %StreamingRecognitionConfig{
       config: recognition_config(opts),
-      streaming_features: %{enable_voice_activity_events: false}
+      # ABSOLUTELY NECESSARY FOR INFINITE STREAMING
+      streaming_features: %{enable_voice_activity_events: true}
     }
   end
 

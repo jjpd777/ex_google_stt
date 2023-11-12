@@ -63,11 +63,11 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
         send(target, {:response, recognize_response})
       end
 
-      # ending the stream to receive the response. Usually not needed, but the audio does not ends in silence
+      # ending the stream to receive the response. Usually not needed, but the audio does not end in silence
       TranscriptionServer.end_stream(stream)
       TranscriptionServer.receive_stream_responses(stream, func)
 
-      assert_transcript("Advent")
+      assert_transcript("Advent", false)
     end
   end
 
@@ -101,25 +101,33 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       )
     end
 
-   test "successfully transcribes data sent in chunks, even if requests are sent after we start receiving response", %{func: func} do
+    test "successfully transcribes data sent in chunks, even if requests are sent after we start receiving response",
+         %{func: func} do
       {:ok, stream} = TranscriptionServer.start_stream()
       config_request = Fixtures.config_request(interim_results: false)
       {:ok, stream} = TranscriptionServer.send_config(stream, config_request)
 
       audio_chunks = Fixtures.chunked_audio_bytes()
-      {first_3_chunks, rest_of_chunks} = Enum.split(audio_chunks, 2)
+      {first_chunk, rest_of_chunks} = Enum.split(audio_chunks, 2)
+      {second_chunk, rest_of_chunks} = Enum.split(rest_of_chunks, 2)
 
-
-      # send first 3 requests
-      Enum.each(first_3_chunks, fn data ->
+      # send first 2 requests
+      Enum.each(first_chunk, fn data ->
         TranscriptionServer.send_request(stream, Fixtures.audio_request(data))
       end)
 
+      # Now ask for the responses
+      TranscriptionServer.receive_stream_responses(stream, func)
+
+      # send the second chunk
+      Enum.each(second_chunk, fn data ->
+        TranscriptionServer.send_request(stream, Fixtures.audio_request(data))
+      end)
+
+      # send the rest of the chunks
       Enum.each(rest_of_chunks, fn data ->
         TranscriptionServer.send_request(stream, Fixtures.audio_request(data))
       end)
-
-      TranscriptionServer.receive_stream_responses(stream, func)
 
       assert_transcript(
         "Adventure 1 a scandal in Bohemia from the Adventures of Sherlock Holmes by Sir Arthur Conan Doyle"
@@ -146,8 +154,18 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
     end
   end
 
-  defp assert_transcript(expected_transcript) do
-    assert_receive {:response, %StreamingRecognizeResponse{results: results}}, 1000
+  defp assert_transcript(expected_transcript, end_event \\ true) do
+    assert_receive {:response,
+                    %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+                   1000
+
+    if end_event do
+      assert_receive {:response,
+                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_END}},
+                     1000
+    end
+
+    assert_receive {:response, %StreamingRecognizeResponse{results: results}}, 5000
     assert [%StreamingRecognitionResult{alternatives: alternative}] = results
     assert [%SpeechRecognitionAlternative{transcript: transcript}] = alternative
     assert String.downcase(transcript) == String.downcase(expected_transcript)
