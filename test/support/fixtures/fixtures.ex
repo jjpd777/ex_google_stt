@@ -115,23 +115,23 @@ defmodule ExGoogleSTT.Fixtures do
     chunk
   end
 
-  def recognition_config(opts \\ []) do
-    interim_results = Keyword.get(opts, :interim_results, false)
-
+  def recognition_config() do
     %RecognitionConfig{
       decoding_config:
         {:auto_decoding_config, %Google.Cloud.Speech.V2.AutoDetectDecodingConfig{}},
       model: "latest_long",
       language_codes: ["en-GB"],
-      features: %{enable_automatic_punctuation: true, interim_results: interim_results}
+      features: %{enable_automatic_punctuation: true}
     }
   end
 
   def streaming_recognition_config(opts \\ []) do
+    interim_results = Keyword.get(opts, :interim_results, false)
+
     %StreamingRecognitionConfig{
-      config: recognition_config(opts),
+      config: recognition_config(),
       # ABSOLUTELY NECESSARY FOR INFINITE STREAMING
-      streaming_features: %{enable_voice_activity_events: true}
+      streaming_features: %{enable_voice_activity_events: true, interim_results: interim_results}
     }
   end
 

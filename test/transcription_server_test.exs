@@ -74,7 +74,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
   describe "Transcription Tests - " do
     setup do
       {:ok, stream} = TranscriptionServer.start_stream()
-      config_request = Fixtures.config_request()
+      config_request = Fixtures.config_request(interim_results: false)
       {:ok, stream} = TranscriptionServer.send_config(stream, config_request)
 
       target = self()
@@ -152,9 +152,83 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       TranscriptionServer.receive_stream_responses(stream, func)
       assert_receive {:response, _response}, 1000
     end
+
+    test "produces interim results", %{func: func} do
+      {:ok, stream} = TranscriptionServer.start_stream()
+      config_request = Fixtures.config_request(interim_results: true)
+      {:ok, stream} = TranscriptionServer.send_config(stream, config_request)
+
+      audio_chunks = Fixtures.chunked_audio_bytes()
+
+      Enum.map(audio_chunks, fn data ->
+        TranscriptionServer.send_request(stream, Fixtures.audio_request(data))
+      end)
+
+      TranscriptionServer.receive_stream_responses(stream, func)
+
+      %{last_response: last_response, interim_results: interim_results} =
+        capture_interim_responses()
+
+      %{transcript: final_transcript, is_final: true} = last_response
+
+      assert_interim_results(interim_results)
+
+      assert final_transcript ==
+               "Adventure 1 a scandal in Bohemia from the Adventures of Sherlock Holmes by Sir Arthur Conan Doyle"
+    end
+  end
+
+  defp capture_interim_responses(interim_results \\ []) do
+    assert_receive {:response, %StreamingRecognizeResponse{} = response}, 150_000
+    parsed_results = parse_results(response.results)
+    interim_results = interim_results ++ parsed_results
+
+    if last_response = Enum.find(parsed_results, & &1.is_final) do
+      %{last_response: last_response, interim_results: interim_results}
+    else
+      capture_interim_responses(interim_results)
+    end
+  end
+
+  defp parse_results(results) do
+    for result <- results do
+      %{alternatives: [%{transcript: transcript}], is_final: is_final} = result
+      %{transcript: transcript, is_final: is_final}
+    end
+  end
+
+  # This checks for 90% accuracy, as the interim results are not deterministic
+  defp assert_interim_results(interim_results) when is_list(interim_results) do
+    interim_transcripts =
+      interim_results
+      |> Enum.map(&(&1.transcript |> String.trim() |> String.downcase()))
+
+    expected_interims =
+      Fixtures.interim_results()
+      |> Enum.map(&(String.trim(&1) |> String.downcase()))
+
+    matches =
+      interim_transcripts
+      |> Enum.reduce(0, fn
+        interim_transcript, matches ->
+          if interim_transcript in expected_interims,
+            do: matches + 1,
+            else: matches
+      end)
+
+    assert matches / length(expected_interims) >= 0.9
   end
 
   defp assert_transcript(expected_transcript, end_event \\ true) do
+    capture_speech_events(end_event)
+
+    assert_receive {:response, %StreamingRecognizeResponse{results: results}}, 5000
+    assert [%StreamingRecognitionResult{alternatives: alternative}] = results
+    assert [%SpeechRecognitionAlternative{transcript: transcript}] = alternative
+    assert String.downcase(transcript) == String.downcase(expected_transcript)
+  end
+
+  defp capture_speech_events(end_event) do
     assert_receive {:response,
                     %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
                    1000
@@ -164,10 +238,5 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
                       %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_END}},
                      1000
     end
-
-    assert_receive {:response, %StreamingRecognizeResponse{results: results}}, 5000
-    assert [%StreamingRecognitionResult{alternatives: alternative}] = results
-    assert [%SpeechRecognitionAlternative{transcript: transcript}] = alternative
-    assert String.downcase(transcript) == String.downcase(expected_transcript)
   end
 end
