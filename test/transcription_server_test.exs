@@ -239,4 +239,22 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
                      1000
     end
   end
+
+  describe "Server Tests -" do
+    test "stream server is closed if caller is shut down" do
+      target = self()
+
+      {:ok, client_pid} =
+        Task.start(fn ->
+          {:ok, server} = TranscriptionServer.start_link(target: self())
+          send(target, {:server, server})
+        end)
+
+      assert_receive {:server, server}, 2000
+
+      Process.monitor(server)
+      Process.exit(client_pid, :normal)
+      assert_receive {:DOWN, _, :process, ^server, :normal}, 2000
+    end
+  end
 end
