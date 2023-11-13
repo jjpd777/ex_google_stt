@@ -254,7 +254,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
 
       Process.monitor(server)
       Process.exit(client_pid, :normal)
-      assert_receive {:DOWN, _, :process, ^server, :normal}, 2000
+      assert_receive {:DOWN, _, :process, ^server, :noproc}, 2000
     end
   end
 end
