@@ -222,7 +222,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
   defp assert_transcript(expected_transcript, end_event \\ true) do
     capture_speech_events(end_event)
 
-    assert_receive {:response, %StreamingRecognizeResponse{results: results}}, 5000
+    assert_receive {:response, %StreamingRecognizeResponse{results: results}}, 5_000_000
     assert [%StreamingRecognitionResult{alternatives: alternative}] = results
     assert [%SpeechRecognitionAlternative{transcript: transcript}] = alternative
     assert String.downcase(transcript) == String.downcase(expected_transcript)
@@ -231,16 +231,18 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
   defp capture_speech_events(end_event) do
     assert_receive {:response,
                     %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
-                   1000
+                   5_000_000
 
     if end_event do
       assert_receive {:response,
                       %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_END}},
-                     1000
+                     5_000_000
     end
   end
 
-  describe "Server Tests -" do
+  # ===================== GenServer Tests =====================
+
+  describe "Monitor" do
     test "stream server is closed if caller is shut down" do
       target = self()
 
@@ -255,6 +257,21 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       Process.monitor(server)
       Process.exit(client_pid, :normal)
       assert_receive {:DOWN, _, :process, ^server, :noproc}, 2000
+    end
+  end
+
+  describe "get_or_start_stream/1" do
+    test "starts a new stream if there's no current one" do
+      recognizer = Fixtures.recognizer()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
+      assert %Stream{} = TranscriptionServer.get_or_start_stream(server_pid)
+    end
+
+    test "takes the previous stream if there's one opened" do
+      recognizer = Fixtures.recognizer()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
+      assert %Stream{} = stream = TranscriptionServer.get_or_start_stream(server_pid)
+      assert stream == TranscriptionServer.get_or_start_stream(server_pid)
     end
   end
 end

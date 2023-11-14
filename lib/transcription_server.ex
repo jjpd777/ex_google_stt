@@ -4,13 +4,13 @@ defmodule ExGoogleSTT.TranscriptionServer do
   """
   use GenServer
 
-  alias ExGoogleSTT.Grpc.StreamClient
-
   alias Google.Cloud.Speech.V2.{
     AutoDetectDecodingConfig,
     RecognitionConfig,
     StreamingRecognitionConfig,
-    StreamingRecognizeRequest
+    StreamingRecognizeRequest,
+    StreamingRecognizeResponse,
+    StreamingRecognitionResult
   }
 
   alias GRPC.Stub, as: GrpcStub
@@ -36,6 +36,8 @@ defmodule ExGoogleSTT.TranscriptionServer do
     - recognizer - a string representing the recognizer to use, defaults to use the recognizer from the config
     - model - a string representing the model to use, defaults to "latest_long". Be careful, changing to 'short' may have unintended consequences
   """
+
+  # ================== GenServer ==================
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, Map.new(opts), name: __MODULE__)
   end
@@ -49,21 +51,28 @@ defmodule ExGoogleSTT.TranscriptionServer do
     # This ensures the transcriptions server is killed if the caller dies
     Process.monitor(target)
 
-    {:ok, %{target: target, recognizer: recognizer, config_request: config_request}}
+    initial_stream_state = %{stream: nil, stream_status: :closed, first_request_sent: false}
+
+    {:ok,
+     %{
+       target: target,
+       recognizer: recognizer,
+       config_request: config_request,
+       stream_state: initial_stream_state
+     }}
   end
 
   defp build_config_request(opts_map) do
-    recognition_cfg = build_recognition_config(opts_map)
+    stream_recognition_cfg = build_str_recognition_config(opts_map)
     recognizer = Map.get(opts_map, :recognizer, default_recognizer())
 
     %StreamingRecognizeRequest{
-      streaming_request:
-        {:streaming_config, %StreamingRecognitionConfig{config: recognition_cfg}},
+      streaming_request: {:streaming_config, stream_recognition_cfg},
       recognizer: recognizer
     }
   end
 
-  defp build_recognition_config(opts_map) do
+  defp build_str_recognition_config(opts_map) do
     recognition_config = %RecognitionConfig{
       decoding_config: {:auto_decoding_config, %AutoDetectDecodingConfig{}},
       model: Map.get(opts_map, :model, @default_model),
@@ -93,6 +102,34 @@ defmodule ExGoogleSTT.TranscriptionServer do
   # This ensures the transcriptions server is killed if the caller dies
   def handle_info({:DOWN, _ref, :process, pid, _reason}, %{target: pid} = state) do
     {:stop, :normal, state}
+  end
+
+  @impl GenServer
+  def handle_call({:get_or_start_stream}, _from, %{stream_state: stream_state} = state) do
+    stream_state =
+      case stream_state.stream_status do
+        :open ->
+          stream_state
+
+        _ ->
+          {:ok, stream} = start_stream()
+          {:ok, stream} = send_config(stream, state.config_request)
+          %{stream: stream, stream_status: :open, first_request_sent: false}
+      end
+
+    {:reply, stream_state.stream, %{state | stream_state: stream_state}}
+  end
+
+  # ================== GenServer Ends ==================
+
+  # ================== API ==================
+
+  @doc """
+  Gets the stream from the state or starts a new one if it's not started yet
+  """
+  @spec get_or_start_stream(pid()) :: GrpcStream.t()
+  def get_or_start_stream(transcription_server_pid) do
+    GenServer.call(transcription_server_pid, {:get_or_start_stream})
   end
 
   defdelegate start_stream, to: StreamClient, as: :start
