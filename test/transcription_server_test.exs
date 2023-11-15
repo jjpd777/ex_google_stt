@@ -290,5 +290,61 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
 
       assert_receive {:response, %Transcript{content: "Advent"}}, 5000
     end
+
+    test "works as expected with interim results" do
+      recognizer = Fixtures.recognizer()
+
+      {:ok, server_pid} =
+        TranscriptionServer.start_link(
+          target: self(),
+          recognizer: recognizer,
+          interim_results: true
+        )
+
+      assert %Stream{} = stream = TranscriptionServer.get_or_start_stream(server_pid)
+
+      Fixtures.chunked_audio_bytes()
+      |> Enum.each(&TranscriptionServer.send_audio_data(server_pid, &1))
+
+      assert_receive {:response,
+                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+                     5000
+
+      capture_and_assert_interim_transcripts()
+    end
+
+    defp capture_and_assert_interim_transcripts(interim_transcripts \\ []) do
+      assert_receive {:response, %Transcript{} = transcript}, 5000
+      interim_transcripts = interim_transcripts ++ [transcript]
+
+      if transcript.is_final do
+        interim_transcripts
+        |> Enum.map(&(&1.content |> String.trim() |> String.downcase()))
+        |> assert_interim_transcripts()
+
+        # Final one
+        transcript
+      else
+        capture_and_assert_interim_transcripts(interim_transcripts)
+      end
+    end
+
+    # This checks for 88% accuracy, as the interim results are not deterministic
+    defp assert_interim_transcripts(interim_transcripts) do
+      expected_interims =
+        Fixtures.interim_results()
+        |> Enum.map(&(String.trim(&1) |> String.downcase()))
+
+      matches =
+        interim_transcripts
+        |> Enum.reduce(0, fn
+          interim_transcript, matches ->
+            if interim_transcript in expected_interims,
+              do: matches + 1,
+              else: matches
+        end)
+
+      assert matches / length(expected_interims) >= 0.88
+    end
   end
 end
