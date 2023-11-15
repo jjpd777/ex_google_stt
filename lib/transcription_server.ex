@@ -5,6 +5,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
   use GenServer
 
   alias ExGoogleSTT.Grpc.StreamClient
+  alias ExGoogleSTT.Transcript
 
   alias Google.Cloud.Speech.V2.{
     AutoDetectDecodingConfig,
@@ -106,12 +107,6 @@ defmodule ExGoogleSTT.TranscriptionServer do
     {:stop, :normal, state}
   end
 
-  def handle_info({_ref, :ok}, state) do
-    # This means the stream closed
-    new_stream_state = %{state.stream_state | stream_status: :closed}
-    {:noreply, %{state | stream_state: new_stream_state}}
-  end
-
   def handle_info({:EXIT, _pid, :normal}, state) do
     # This means the stream closed
     new_stream_state = %{state.stream_state | stream_status: :closed}
@@ -173,6 +168,8 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   defp parse_response({:ok, %StreamingRecognizeResponse{} = response}), do: [response]
 
+  defp parse_response({:error, error}), do: [error]
+
   defp parse_results(results) do
     for result <- results do
       parse_result(result)
@@ -180,7 +177,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
   end
 
   defp parse_result(%StreamingRecognitionResult{alternatives: [alternative]} = result) do
-    %{transcript: alternative.transcript, is_final: result.is_final}
+    %Transcript{content: alternative.transcript, is_final: result.is_final}
   end
 
   # ================== GenServer Ends ==================

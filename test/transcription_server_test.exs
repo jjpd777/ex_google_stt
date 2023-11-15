@@ -2,7 +2,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
   @moduledoc false
   use ExUnit.Case, async: false
 
-  alias ExGoogleSTT.{Fixtures, TranscriptionServer}
+  alias ExGoogleSTT.{Fixtures, Transcript, TranscriptionServer}
 
   alias GRPC.Client.Stream
 
@@ -288,7 +288,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
                       %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
                      5000
 
-      assert_receive {:response, %{transcript: "Advent"}}, 5000
+      assert_receive {:response, %Transcript{content: "Advent"}}, 5000
     end
   end
 end
