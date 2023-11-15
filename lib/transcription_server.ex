@@ -4,6 +4,8 @@ defmodule ExGoogleSTT.TranscriptionServer do
   """
   use GenServer
 
+  alias ExGoogleSTT.Grpc.StreamClient
+
   alias Google.Cloud.Speech.V2.{
     AutoDetectDecodingConfig,
     RecognitionConfig,
@@ -104,6 +106,20 @@ defmodule ExGoogleSTT.TranscriptionServer do
     {:stop, :normal, state}
   end
 
+  def handle_info({_ref, :ok}, state) do
+    # This means the stream closed
+    new_stream_state = %{state.stream_state | stream_status: :closed}
+    {:noreply, %{state | stream_state: new_stream_state}}
+  end
+
+  def handle_info({:EXIT, _pid, :normal}, state) do
+    # This means the stream closed
+    new_stream_state = %{state.stream_state | stream_status: :closed}
+    {:noreply, %{state | stream_state: new_stream_state}}
+  end
+
+  def handle_info(_, state), do: {:noreply, state}
+
   @impl GenServer
   def handle_call({:get_or_start_stream}, _from, %{stream_state: stream_state} = state) do
     stream_state =
@@ -120,9 +136,71 @@ defmodule ExGoogleSTT.TranscriptionServer do
     {:reply, stream_state.stream, %{state | stream_state: stream_state}}
   end
 
+  @impl GenServer
+  def handle_call(
+        {:send_audio_request, audio_data},
+        _from,
+        %{stream_state: %{stream: stream} = stream_state} = state
+      ) do
+    audio_request = build_audio_request(audio_data, state.recognizer)
+    send_request(stream, audio_request)
+    # Only the first request requires we start the response generator
+    unless stream_state.first_request_sent do
+      receive_stream_responses(stream, default_handling_func(state.target))
+    end
+
+    new_stream_state = %{state.stream_state | stream: stream, first_request_sent: true}
+    {:reply, :ok, %{state | stream_state: new_stream_state}}
+  end
+
+  defp build_audio_request(audio_data, recognizer) do
+    %StreamingRecognizeRequest{streaming_request: {:audio, audio_data}, recognizer: recognizer}
+  end
+
+  def default_handling_func(target) do
+    fn recognize_response ->
+      entries = parse_response(recognize_response)
+
+      for entry <- entries do
+        send(target, {:response, entry})
+      end
+    end
+  end
+
+  defp parse_response({:ok, %StreamingRecognizeResponse{results: results}}) when results != [] do
+    parse_results(results)
+  end
+
+  defp parse_response({:ok, %StreamingRecognizeResponse{} = response}), do: [response]
+
+  defp parse_results(results) do
+    for result <- results do
+      parse_result(result)
+    end
+  end
+
+  defp parse_result(%StreamingRecognitionResult{alternatives: [alternative]} = result) do
+    %{transcript: alternative.transcript, is_final: result.is_final}
+  end
+
   # ================== GenServer Ends ==================
 
   # ================== API ==================
+
+  @doc """
+  That's the main entrypoint for processing audio.
+  It will start a stream, if it's not already started and send the audio to it.
+  It will also send the config if it's not already sent.
+  """
+  @spec process_audio(pid(), binary()) :: :ok
+  def process_audio(transcription_server_pid, audio_data) do
+    stream = get_or_start_stream(transcription_server_pid)
+    send_audio_data(transcription_server_pid, audio_data)
+  end
+
+  def send_audio_data(transcription_server_pid, audio_data) do
+    GenServer.call(transcription_server_pid, {:send_audio_request, audio_data})
+  end
 
   @doc """
   Gets the stream from the state or starts a new one if it's not started yet

@@ -222,7 +222,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
   defp assert_transcript(expected_transcript, end_event \\ true) do
     capture_speech_events(end_event)
 
-    assert_receive {:response, %StreamingRecognizeResponse{results: results}}, 5_000_000
+    assert_receive {:response, %StreamingRecognizeResponse{results: results}}, 5000
     assert [%StreamingRecognitionResult{alternatives: alternative}] = results
     assert [%SpeechRecognitionAlternative{transcript: transcript}] = alternative
     assert String.downcase(transcript) == String.downcase(expected_transcript)
@@ -231,12 +231,12 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
   defp capture_speech_events(end_event) do
     assert_receive {:response,
                     %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
-                   5_000_000
+                   5000
 
     if end_event do
       assert_receive {:response,
                       %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_END}},
-                     5_000_000
+                     5000
     end
   end
 
@@ -252,11 +252,11 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
           send(target, {:server, server})
         end)
 
-      assert_receive {:server, server}, 2000
+      assert_receive {:server, server}, 5000
 
       Process.monitor(server)
       Process.exit(client_pid, :normal)
-      assert_receive {:DOWN, _, :process, ^server, :noproc}, 2000
+      assert_receive {:DOWN, _, :process, ^server, :noproc}, 5000
     end
   end
 
@@ -272,6 +272,23 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
       assert %Stream{} = stream = TranscriptionServer.get_or_start_stream(server_pid)
       assert stream == TranscriptionServer.get_or_start_stream(server_pid)
+    end
+  end
+
+  describe "send_audio_data" do
+    test "sends audio data to the stream and starts fetching responses if it is the first request" do
+      recognizer = Fixtures.recognizer()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
+      assert %Stream{} = stream = TranscriptionServer.get_or_start_stream(server_pid)
+      audio_data = Fixtures.audio_bytes()
+      TranscriptionServer.send_audio_data(server_pid, audio_data)
+      TranscriptionServer.end_stream(stream)
+
+      assert_receive {:response,
+                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+                     5000
+
+      assert_receive {:response, %{transcript: "Advent"}}, 5000
     end
   end
 end
