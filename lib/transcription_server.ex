@@ -39,12 +39,70 @@ defmodule ExGoogleSTT.TranscriptionServer do
     - recognizer - a string representing the recognizer to use, defaults to use the recognizer from the config
     - model - a string representing the model to use, defaults to "latest_long". Be careful, changing to 'short' may have unintended consequences
   """
+  # ================== APIs ==================
+  def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, Map.new(opts))
 
-  # ================== GenServer ==================
-  def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, Map.new(opts))
+  @doc """
+  That's the main entrypoint for processing audio.
+  It will start a stream, if it's not already started and send the audio to it.
+  It will also send the config if it's not already sent.
+  """
+  @spec process_audio(pid(), binary()) :: GrpcStream.t()
+  def process_audio(transcription_server_pid, audio_data) do
+    with %GrpcStream{} = stream <- get_or_start_stream(transcription_server_pid) do
+      send_audio_data(transcription_server_pid, audio_data)
+      stream
+    end
   end
 
+  def send_audio_data(transcription_server_pid, audio_data) do
+    GenServer.call(transcription_server_pid, {:send_audio_request, audio_data})
+  end
+
+  @doc """
+  Gets the stream from the state or starts a new one if it's not started yet
+  """
+  @spec get_or_start_stream(pid()) :: GrpcStream.t()
+  def get_or_start_stream(transcription_server_pid) do
+    GenServer.call(transcription_server_pid, {:get_or_start_stream})
+  end
+
+  defdelegate start_stream, to: StreamClient, as: :start
+  defdelegate stop_stream(stream), to: StreamClient, as: :stop
+
+  def end_stream(stream), do: GrpcStub.end_stream(stream)
+
+  @spec send_config(GrpcStream.t(), StreamingRecognizeRequest.t(), Keyword.t()) ::
+          {:ok, GrpcStream.t()} | {:error, any()}
+  def send_config(stream, cfg_request, opts \\ []), do: send_request(stream, cfg_request, opts)
+
+  @spec send_request(GrpcStream.t(), StreamingRecognizeRequest.t(), Keyword.t()) ::
+          {:ok, GrpcStream.t()} | {:error, any()}
+  def send_request(stream, request, opts \\ []) do
+    with %GrpcStream{} = stream <- GrpcStub.send_request(stream, request, opts) do
+      {:ok, stream}
+    end
+  end
+
+  @doc """
+  Runs a loop that receives responses from the stream and performs the function provided on each response
+  Must be called after the config and at least one audio request have been sent
+  """
+  @spec receive_stream_responses(GrpcStream.t(), fun()) :: :ok
+  def receive_stream_responses(stream, func) do
+    {:ok, ex_stream} = GRPC.Stub.recv(stream)
+    # receive result
+    Task.async(fn ->
+      ex_stream
+      |> Stream.each(&func.(&1))
+      # code will be blocked until the stream end
+      |> Stream.run()
+    end)
+
+    :ok
+  end
+
+  # ================== GenServer ==================
   @impl GenServer
   def init(opts_map) do
     target = Map.get(opts_map, :target, self())
@@ -157,7 +215,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
     %StreamingRecognizeRequest{streaming_request: {:audio, audio_data}, recognizer: recognizer}
   end
 
-  def default_handling_func(target) do
+  defp default_handling_func(target) do
     fn recognize_response ->
       entries = parse_response(recognize_response)
 
@@ -186,66 +244,4 @@ defmodule ExGoogleSTT.TranscriptionServer do
   end
 
   # ================== GenServer Ends ==================
-
-  # ================== API ==================
-
-  @doc """
-  That's the main entrypoint for processing audio.
-  It will start a stream, if it's not already started and send the audio to it.
-  It will also send the config if it's not already sent.
-  """
-  @spec process_audio(pid(), binary()) :: GrpcStream.t()
-  def process_audio(transcription_server_pid, audio_data) do
-    with %GrpcStream{} = stream <- get_or_start_stream(transcription_server_pid) do
-      send_audio_data(transcription_server_pid, audio_data)
-      stream
-    end
-  end
-
-  def send_audio_data(transcription_server_pid, audio_data) do
-    GenServer.call(transcription_server_pid, {:send_audio_request, audio_data})
-  end
-
-  @doc """
-  Gets the stream from the state or starts a new one if it's not started yet
-  """
-  @spec get_or_start_stream(pid()) :: GrpcStream.t()
-  def get_or_start_stream(transcription_server_pid) do
-    GenServer.call(transcription_server_pid, {:get_or_start_stream})
-  end
-
-  defdelegate start_stream, to: StreamClient, as: :start
-  defdelegate stop_stream(stream), to: StreamClient, as: :stop
-
-  def end_stream(stream), do: GrpcStub.end_stream(stream)
-
-  @spec send_config(GrpcStream.t(), StreamingRecognizeRequest.t(), Keyword.t()) ::
-          {:ok, GrpcStream.t()} | {:error, any()}
-  def send_config(stream, cfg_request, opts \\ []), do: send_request(stream, cfg_request, opts)
-
-  @spec send_request(GrpcStream.t(), StreamingRecognizeRequest.t(), Keyword.t()) ::
-          {:ok, GrpcStream.t()} | {:error, any()}
-  def send_request(stream, request, opts \\ []) do
-    with %GrpcStream{} = stream <- GrpcStub.send_request(stream, request, opts) do
-      {:ok, stream}
-    end
-  end
-
-  @doc """
-  Runs a loop that receives responses from the stream and performs the function provided on each response
-  Must be called after the config and at least one audio request have been sent
-  """
-  @spec receive_stream_responses(GrpcStream.t(), fun()) :: :ok
-  def receive_stream_responses(stream, func) do
-    {:ok, ex_stream} = GRPC.Stub.recv(stream)
-    # receive result
-    Task.async(fn ->
-      ex_stream
-      |> Stream.each(&func.(&1))
-      # code will be blocked until the stream end
-      |> Stream.run()
-    end)
-
-    :ok
-  end
 end

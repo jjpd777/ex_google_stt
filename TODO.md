@@ -1,3 +1,0 @@
-- the `%{enable_voice_activity_events: true}` is ABSOLUTELY NECESSARY
-- We just need to create more tests now
-- change README
