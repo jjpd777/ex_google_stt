@@ -42,7 +42,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   # ================== GenServer ==================
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, Map.new(opts), name: __MODULE__)
+    GenServer.start_link(__MODULE__, Map.new(opts))
   end
 
   @impl GenServer
@@ -54,7 +54,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
     # This ensures the transcriptions server is killed if the caller dies
     Process.monitor(target)
 
-    initial_stream_state = %{stream: nil, stream_status: :closed, first_request_sent: false}
+    initial_stream_state = %{stream: nil, first_request_sent: false}
 
     {:ok,
      %{
@@ -107,25 +107,19 @@ defmodule ExGoogleSTT.TranscriptionServer do
     {:stop, :normal, state}
   end
 
-  def handle_info({:EXIT, _pid, :normal}, state) do
-    # This means the stream closed
-    new_stream_state = %{state.stream_state | stream_status: :closed}
-    {:noreply, %{state | stream_state: new_stream_state}}
-  end
-
   def handle_info(_, state), do: {:noreply, state}
 
   @impl GenServer
   def handle_call({:get_or_start_stream}, _from, %{stream_state: stream_state} = state) do
     stream_state =
-      case stream_state.stream_status do
-        :open ->
+      case check_stream_status(stream_state.stream, state.recognizer) do
+        {:ok, :stream_open} ->
           stream_state
 
-        _ ->
+        {:error, :stream_closed} ->
           {:ok, stream} = start_stream()
           {:ok, stream} = send_config(stream, state.config_request)
-          %{stream: stream, stream_status: :open, first_request_sent: false}
+          %{stream: stream, first_request_sent: false}
       end
 
     {:reply, stream_state.stream, %{state | stream_state: stream_state}}
@@ -146,6 +140,17 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
     new_stream_state = %{state.stream_state | stream: stream, first_request_sent: true}
     {:reply, :ok, %{state | stream_state: new_stream_state}}
+  end
+
+  defp check_stream_status(stream, recognizer) do
+    audio_request = build_audio_request(" ", recognizer)
+
+    try do
+      send_request(stream, audio_request)
+      {:ok, :stream_open}
+    rescue
+      _ -> {:error, :stream_closed}
+    end
   end
 
   defp build_audio_request(audio_data, recognizer) do
@@ -189,10 +194,12 @@ defmodule ExGoogleSTT.TranscriptionServer do
   It will start a stream, if it's not already started and send the audio to it.
   It will also send the config if it's not already sent.
   """
-  @spec process_audio(pid(), binary()) :: :ok
+  @spec process_audio(pid(), binary()) :: GrpcStream.t()
   def process_audio(transcription_server_pid, audio_data) do
-    stream = get_or_start_stream(transcription_server_pid)
-    send_audio_data(transcription_server_pid, audio_data)
+    with %GrpcStream{} = stream <- get_or_start_stream(transcription_server_pid) do
+      send_audio_data(transcription_server_pid, audio_data)
+      stream
+    end
   end
 
   def send_audio_data(transcription_server_pid, audio_data) do

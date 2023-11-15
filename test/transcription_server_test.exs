@@ -301,7 +301,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
           interim_results: true
         )
 
-      assert %Stream{} = stream = TranscriptionServer.get_or_start_stream(server_pid)
+      assert %Stream{} = TranscriptionServer.get_or_start_stream(server_pid)
 
       Fixtures.chunked_audio_bytes()
       |> Enum.each(&TranscriptionServer.send_audio_data(server_pid, &1))
@@ -345,6 +345,97 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
         end)
 
       assert matches / length(expected_interims) >= 0.88
+    end
+
+    test "returns an error if the audio is too large" do
+      recognizer = Fixtures.recognizer()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
+      assert %Stream{} = TranscriptionServer.get_or_start_stream(server_pid)
+      audio_data = Fixtures.full_audio_bytes()
+
+      TranscriptionServer.send_audio_data(server_pid, audio_data)
+
+      assert_receive {:response,
+                      %GRPC.RPCError{
+                        message: "Audio chunk can be of a a maximum of 25600 bytes" <> _
+                      }},
+                     5000
+    end
+  end
+
+  describe "process_audio/2" do
+    test "correcly starts a stream and process the audio" do
+      recognizer = Fixtures.recognizer()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
+      audio_data = Fixtures.audio_bytes()
+      stream = TranscriptionServer.process_audio(server_pid, audio_data)
+      TranscriptionServer.end_stream(stream)
+
+      assert_receive {:response,
+                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+                     5000
+
+      assert_receive {:response, %Transcript{content: "Advent"}}, 5000
+    end
+
+    test "starts a new stream if the previous one is closed and process the audio" do
+      recognizer = Fixtures.recognizer()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
+      audio_data = Fixtures.audio_bytes()
+
+      # Processes first audio
+      stream = TranscriptionServer.process_audio(server_pid, audio_data)
+      TranscriptionServer.end_stream(stream)
+
+      assert_receive {:response,
+                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+                     5000
+
+      assert_receive {:response, %Transcript{content: "Advent"}}, 5000
+
+      # Processes second audio
+      new_stream = TranscriptionServer.process_audio(server_pid, audio_data)
+      TranscriptionServer.end_stream(new_stream)
+
+      assert_receive {:response,
+                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+                     5000
+
+      assert_receive {:response, %Transcript{content: "Advent"}}, 5000
+    end
+  end
+
+  # Careful when running these, since they'll cost you money
+  describe "Load Tests" do
+    @describetag :load_test
+    test "can open 50 sessions at the same time without issue" do
+      number_of_sessions = 50
+
+      target = self()
+      audio_data = Fixtures.audio_bytes()
+
+      tasks =
+        for _ <- 1..number_of_sessions do
+          Task.async(fn ->
+            recognizer = Fixtures.recognizer()
+
+            {:ok, server_pid} =
+              TranscriptionServer.start_link(target: target, recognizer: recognizer)
+
+            stream = TranscriptionServer.process_audio(server_pid, audio_data)
+            TranscriptionServer.end_stream(stream)
+          end)
+        end
+
+      Enum.each(tasks, &Task.await/1)
+
+      for _ <- 1..number_of_sessions do
+        assert_receive {:response,
+                        %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+                       5000
+
+        assert_receive {:response, %Transcript{content: "Advent"}}, 5000
+      end
     end
   end
 end

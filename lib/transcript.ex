@@ -1,4 +1,5 @@
 defmodule ExGoogleSTT.Transcript do
+  @moduledoc false
   defstruct [:content, :is_final]
 
   @type t :: %__MODULE__{
