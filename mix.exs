@@ -35,7 +35,7 @@ defmodule ExGoogleSTT.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.27", only: :dev, runtime: false},
       {:goth, "~> 1.3"},
-      {:grpc, "~> 0.7"},
+      {:grpc, github: "luiz-pereira/grpc", branch: "testing-fixes"},
       {:protobuf, "~> 0.12"}
     ]
   end
