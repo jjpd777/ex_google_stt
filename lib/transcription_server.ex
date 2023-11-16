@@ -64,7 +64,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
   """
   @spec get_or_start_stream(pid()) :: GrpcStream.t()
   def get_or_start_stream(transcription_server_pid) do
-    GenServer.call(transcription_server_pid, {:get_or_start_stream})
+    GenServer.call(transcription_server_pid, {:get_or_start_stream}, 100_000)
   end
 
   defdelegate start_stream, to: StreamClient, as: :start
@@ -232,6 +232,9 @@ defmodule ExGoogleSTT.TranscriptionServer do
   defp parse_response({:ok, %StreamingRecognizeResponse{} = response}), do: [response]
 
   defp parse_response({:error, error}), do: [error]
+
+  # Ignoring the noise for now
+  defp parse_response(_), do: []
 
   defp parse_results(results) do
     for result <- results do

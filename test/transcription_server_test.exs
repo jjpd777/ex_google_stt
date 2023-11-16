@@ -58,9 +58,13 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
 
       target = self()
 
-      func = fn response ->
-        assert {:ok, %StreamingRecognizeResponse{} = recognize_response} = response
-        send(target, {:response, recognize_response})
+      func = fn
+        {:headers, _} ->
+          nil
+
+        response ->
+          assert {:ok, %StreamingRecognizeResponse{} = recognize_response} = response
+          send(target, {:response, recognize_response})
       end
 
       # ending the stream to receive the response. Usually not needed, but the audio does not end in silence
@@ -79,9 +83,13 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
 
       target = self()
 
-      func = fn response ->
-        assert {:ok, %StreamingRecognizeResponse{} = recognize_response} = response
-        send(target, {:response, recognize_response})
+      func = fn
+        {:headers, _} ->
+          nil
+
+        response ->
+          assert {:ok, %StreamingRecognizeResponse{} = recognize_response} = response
+          send(target, {:response, recognize_response})
       end
 
       {:ok, %{stream: stream, func: func}}
@@ -137,14 +145,18 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
     test "fails if Audio data is larger than 25_600 bytes", %{stream: stream} do
       target = self()
 
-      func = fn response ->
-        assert {:error,
-                %GRPC.RPCError{
-                  status: 3,
-                  message: "Audio chunk can be of a a maximum of 25600 bytes" <> _
-                }} = response
+      func = fn
+        {:headers, _} ->
+          nil
 
-        send(target, {:response, response})
+        response ->
+          assert {:error,
+                  %GRPC.RPCError{
+                    status: 3,
+                    message: "Audio chunk can be of a a maximum of 25600 bytes" <> _
+                  }} = response
+
+          send(target, {:response, response})
       end
 
       audio_request = Fixtures.audio_request(Fixtures.full_audio_bytes())
