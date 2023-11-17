@@ -11,7 +11,7 @@ The package can be installed by adding `:ex_google_stt` to your list of dependen
 ```elixir
 def deps do
   [
-    {:ex_google_stt, "~> 0.0.1"}
+    {:ex_google_stt, "~> 0.2.1"}
   ]
 end
 ```
@@ -20,67 +20,77 @@ end
 
 This library uses [`Goth`](https://github.com/peburrows/goth) to obtain authentication tokens. It requires Google Cloud credendials to be configured. See [Goth's README](https://github.com/peburrows/goth#installation) for details.
 
-Tests with tag `:integration` communicate with Google APIs and require such config, thus are
-excluded by default, use `mix test --include integration` to run them.
+Using Google's V2 API requires that you set a recognizer to use for your requests (see [here](https://cloud.google.com/speech-to-text/v2/docs/reference/rest/v2/projects.locations.recognizers#Recognizer])). It is a string like the following:
+
+`projects/{project}/locations/{location}/recognizers/{recognizer}`
+
+You can either set this in the config or send it as a configuration when starting the `TranscriptionServer`.
+
+In the config:
+```elixir
+config :ex_google_stt, recognizer: "projects/{project}/locations/{location}/recognizers/_"
+```
+
 
 ## Usage
 
 ### Introduction
-Here's the basic flow:
+The library is designed to abstract most of the GRPC logic, so I'll provide the most basic use of it here.
 
-#### Create your Genserver
-A Genserver is required to that the `StreamingServer` can send the transcriptions back to the caller. This is captured via a `handle_info`
+- In summary, we use a `TranscriptionServer` than handles the GRPC streams to Google.
+- That `TranscriptionServer` is responsible for monitoring/opening the streams and to parse the responses.
+- Send audio data (as binary) using `TranscriptionServer.process_audio(server_pid, audio_data)`
+- The `TranscriptionServer` will then send the responses to the target pid, set when creating the server.
+- The caller should define a `handle_info` that will receive the transcripts and handle eventual errors.
 
-#### Build the configurations
-```elixir
-recognizer = "projects/["project_id"]/locations/global/recognizers/_"
 
-cfg = %RecognitionConfig{
-  decoding_config:
-    {:auto_decoding_config, %Google.Cloud.Speech.V2.AutoDetectDecodingConfig{}},
-  model: "long",
-  language_codes: ["en-GB"],
-  features: %{enable_automatic_punctuation: true}
-}
+### Initial Configurations
+When starting the `TranscriptionServer`, you can define a few configs:
 
-str_cfg = %StreamingRecognitionConfig{
-  config: cfg,
-  streaming_features: %{interim_results: true}
-}
-
-str_cfg_req = %StreamingRecognizeRequest{
-  streaming_request: {:streaming_config, str_cfg},
-  recognizer: @recognizer
-}
 ```
-#### Start the server
-- Start the `StreamingServer` with `start_link`
-- Send the configuration request. This must always be the first request.
-```elixir
-{:ok, transcription_server} = StreamingServer.start_link()
-StreamingServer.send_config(transcription_server, str_cfg_req)
+- target - a pid to send the results to, defaults to self()
+- language_codes - a list of language codes to use for recognition, defaults to ["en-US"]
+- enable_automatic_punctuation - a boolean to enable automatic punctuation, defaults to true
+- interim_results - a boolean to enable interim results, defaults to false
+- recognizer - a string representing the recognizer to use, defaults to use the recognizer from the config
+- model - a string representing the model to use, defaults to "latest_long". Be careful, changing to 'short' may have unintended consequences
 ```
 
-#### Send Requests
-```elixir
-request = %StreamingRecognizeRequest{streaming_request: {:audio, data}, recognizer: recognizer}
-
-StreamingServer.send_request(transcription_server, request)
-```
-
-#### Receive Responses
-This is done in the original caller.
-You can also include this in a `Phoenix.Channel`.
+### Example
 
 ```elixir
-def handle_info(%StreamingRecognizeResponse{} = response, state) do
-  results = response.results
-  transcripts = Enum.map(results, fn result ->
-    [alternative] = result.alternatives
-      %{content: alternative.transcript, is_final: result.is_final}
-  end)
+
+defmodule MyModule.Transcribing do
+  use GenServer
+
+  alias ExGoogleSTT.{Transcript, TranscriptionServer}
+
+  ...
+  def init(_opts) do
+    {:ok, transcription_server} = TranscriptionServer.start_link(target: self(), interim_results: true)
+  end
+
+  def handle_info({:got_new_speech, speech_binary}, state) do
+    TranscriptionServer.process_audio(state.server_pid, speech_binary)
+  end
+
+  def handle_info({:response, %{Transcript{} = transcript}}, state) do
+    # Do whatever you need with the transcription
+  end
+
+
+  def handle_info({:response, other_responses_or_error}, state) do
+    # Do something or just ignore
+  end
 end
+
 ```
+
+### Other usages
+The library allows you define other response handling functions and even ditch the `GenServer` part of `TranscriptionServer` altogether.
+
+
+## Notes
 
 ### Infinite stream
 Google's STT V2 knows when a sentence finishes, as long as there's some silence after it. When that happens, it'll return the transcription without ending the stream.
@@ -92,11 +102,18 @@ A few points to notice though.
 - One must end the stream to ensure the transcription stops.
 
 
-## Auto-generated modules
+### Auto-generated modules
 
 This library uses [`protobuf-elixir`](https://github.com/tony612/protobuf-elixir) and its `protoc-gen-elixir` plugin to generate Elixir modules from `*.proto` files for Google's Speech gRPC API. The documentation for the types defined in `*.proto` files can be found [here](https://cloud.google.com/speech-to-text/docs/reference/rpc/google.cloud.speech.v1)
 
-## Fixture
+
+### Tests
+
+ALL the tests require communication with google, so you must have a google credentials configured to run them in this repo.
+
+Tests with tag `:load_test` are excluded by default, since they can be a bit expensive to run, use `mix test --include load_test` to run them.
+
+#### Fixture
 
 A recording fragment in `test/fixtures` comes from an audiobook
 "The adventures of Sherlock Holmes (version 2)" available on [LibriVox](https://librivox.org/the-adventures-of-sherlock-holmes-by-sir-arthur-conan-doyle/)
@@ -104,11 +121,8 @@ A recording fragment in `test/fixtures` comes from an audiobook
 ## Status
 
 Current version of library supports only Streaming API and not tested in production. Treat this as experimental.
+
 ## License
-
-This project includes modified code from [Original Project or Code Name], which is licensed under the Apache License 2.0 (the "License"). You may not use the files containing modifications from the original project except in compliance with the License. A copy of the License is included in this project in the file named `LICENSE`.
-
-The original work is available at [link to the original repository or project homepage].
 
 Portions of this project are modifications based on work created by [![Software Mansion](https://membraneframework.github.io/static/logo/swm_logo_readme.png)](https://swmansion.com/) and used according to terms described in the Apache License 2.0. See [here](https://github.com/software-mansion-labs/elixir-gcloud-speech-grpc) for the original repository.
 
