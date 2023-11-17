@@ -16,7 +16,6 @@ defmodule ExGoogleSTT.TranscriptionServer do
     StreamingRecognitionResult
   }
 
-  alias GRPC.Stub, as: GrpcStub
   alias GRPC.Client.Stream, as: GrpcStream
 
   @default_model "latest_long"
@@ -49,17 +48,18 @@ defmodule ExGoogleSTT.TranscriptionServer do
   """
   @spec process_audio(pid(), binary()) :: :ok
   def process_audio(transcription_server_pid, audio_data) do
-    with speech_client_pid <- get_or_start_speech_client(transcription_server_pid) do
-      send_audio_data(transcription_server_pid, speech_client_pid, audio_data)
+    with {:ok, _speech_client} <- get_or_start_speech_client(transcription_server_pid) do
+      send_audio_data(transcription_server_pid, audio_data)
     end
   end
 
   # @doc """
   # Gets the speech_client that controls the responses
   # """
-  @spec get_or_start_speech_client(pid()) :: GrpcStream.t()
+  @spec get_or_start_speech_client(pid()) :: {:ok, pid()}
   def get_or_start_speech_client(transcription_server_pid) do
-    GenServer.call(transcription_server_pid, {:get_or_start_speech_client})
+    speech_client = GenServer.call(transcription_server_pid, {:get_or_start_speech_client})
+    {:ok, speech_client}
   end
 
   # ================== GenServer ==================
