@@ -115,6 +115,12 @@ defmodule ExGoogleSTT.Fixtures do
     chunk
   end
 
+  def small_audio_bytes do
+    "./Hello.m4a"
+    |> Path.expand(__DIR__)
+    |> File.read!()
+  end
+
   def recognition_config() do
     %RecognitionConfig{
       decoding_config:
