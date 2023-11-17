@@ -16,8 +16,6 @@ defmodule ExGoogleSTT.TranscriptionServer do
     StreamingRecognitionResult
   }
 
-  alias GRPC.Client.Stream, as: GrpcStream
-
   @default_model "latest_long"
   @default_language_codes ["en-US"]
 
@@ -53,14 +51,16 @@ defmodule ExGoogleSTT.TranscriptionServer do
     end
   end
 
-  # @doc """
-  # Gets the speech_client that controls the responses
-  # """
   @spec get_or_start_speech_client(pid()) :: {:ok, pid()}
-  def get_or_start_speech_client(transcription_server_pid) do
-    speech_client = GenServer.call(transcription_server_pid, {:get_or_start_speech_client})
+  defp get_or_start_speech_client(transcription_server_pid) do
+    speech_client =
+      GenServer.call(transcription_server_pid, {:get_or_start_speech_client}, :infinity)
+
     {:ok, speech_client}
   end
+
+  def end_stream(transcription_server_pid),
+    do: GenServer.call(transcription_server_pid, :end_stream)
 
   # ================== GenServer ==================
 
@@ -89,7 +89,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
       case speech_client_state(state) do
         :closed ->
           {:ok, speech_client} = GrpcSpeechClient.start_link()
-          {:ok, _} = send_config(speech_client, state.config_request)
+          :ok = send_config(speech_client, state.config_request)
           speech_client
 
         :open ->
@@ -132,6 +132,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
   def handle_info(_, state), do: {:noreply, state}
 
   # ================== GenServer Helpers ==================
+
   defp build_config_request(opts_map) do
     stream_recognition_cfg = build_str_recognition_config(opts_map)
     recognizer = Map.get(opts_map, :recognizer, default_recognizer())
@@ -181,25 +182,23 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   defp speech_client_state(_), do: :open
 
-  defp end_stream(stream), do: GenServer.call(stream, :end_stream)
-
-  @spec send_config(GrpcStream.t(), StreamingRecognizeRequest.t()) :: :ok
+  @spec send_config(pid(), StreamingRecognizeRequest.t()) :: :ok
   defp send_config(speech_client, cfg_request), do: send_request(speech_client, cfg_request)
 
-  @spec send_request(GrpcStream.t(), StreamingRecognizeRequest.t()) :: :ok
+  @spec send_request(pid(), StreamingRecognizeRequest.t()) :: :ok
   defp send_request(speech_client, request) do
     GrpcSpeechClient.send_request(speech_client, request)
   end
 
   defp send_audio_data(transcription_server_pid, audio_data) do
-    GenServer.call(transcription_server_pid, {:send_audio_request, audio_data})
+    GenServer.call(transcription_server_pid, {:send_audio_request, audio_data}, :infinity)
   end
 
-  defp parse_response({:ok, %StreamingRecognizeResponse{results: results}}) when results != [] do
+  defp parse_response(%StreamingRecognizeResponse{results: results}) when results != [] do
     parse_results(results)
   end
 
-  defp parse_response({:ok, %StreamingRecognizeResponse{} = response}), do: [response]
+  defp parse_response(%StreamingRecognizeResponse{} = response), do: [response]
 
   defp parse_response({:error, error}), do: [error]
 
