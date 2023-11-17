@@ -36,9 +36,9 @@ defmodule ExGoogleSTT.GrpcSpeechClient do
     :ok
   end
 
-  @spec send_requests(client :: pid(), [StreamingRecognizeRequest.t()], Keyword.t()) :: :ok
-  def send_requests(pid, requests, opts \\ []) do
-    send(pid, {__MODULE__, :send_requests, requests, opts})
+  @spec send_request(client :: pid(), StreamingRecognizeRequest.t()) :: :ok
+  def send_request(pid, request) do
+    send(pid, {__MODULE__, :send_request, request})
     :ok
   end
 
@@ -85,8 +85,8 @@ defmodule ExGoogleSTT.GrpcSpeechClient do
 
   defp receive_others(%{channel: channel, stream: stream} = state) do
     receive do
-      {__MODULE__, :send_requests, requests, opts} ->
-        requests |> Enum.each(&GRPC.Stub.send_request(stream, &1, opts))
+      {__MODULE__, :send_request, requests, opts} ->
+        GRPC.Stub.send_request(stream, request, opts)
         state
 
       {__MODULE__, :end_stream} ->
