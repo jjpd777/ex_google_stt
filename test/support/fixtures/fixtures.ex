@@ -1,4 +1,14 @@
 defmodule ExGoogleSTT.Fixtures do
+  @moduledoc """
+  Fixtures for testing.
+  """
+
+  alias Google.Cloud.Speech.V2.{
+    StreamingRecognizeRequest,
+    StreamingRecognitionConfig,
+    RecognitionConfig
+  }
+
   def interim_results do
     [
       "advent",
@@ -84,6 +94,11 @@ defmodule ExGoogleSTT.Fixtures do
     ]
   end
 
+  def full_audio_bytes() do
+    sherlock_with_silence = "./sherlock_with_silence.mp3" |> Path.expand(__DIR__)
+    File.read!(sherlock_with_silence)
+  end
+
   def chunked_audio_bytes() do
     sherlock_with_silence = "./sherlock_with_silence.mp3" |> Path.expand(__DIR__)
 
@@ -92,5 +107,59 @@ defmodule ExGoogleSTT.Fixtures do
       part_g::binary-size(25_600), part_h::binary>> = File.read!(sherlock_with_silence)
 
     [part_a, part_b, part_c, part_d, part_e, part_f, part_g, part_h]
+  end
+
+  def audio_bytes() do
+    sherlock_with_silence = "./sherlock_with_silence.mp3" |> Path.expand(__DIR__)
+    <<chunk::binary-size(25_600), _rest::binary>> = File.read!(sherlock_with_silence)
+    chunk
+  end
+
+  def recognition_config() do
+    %RecognitionConfig{
+      decoding_config:
+        {:auto_decoding_config, %Google.Cloud.Speech.V2.AutoDetectDecodingConfig{}},
+      model: "latest_long",
+      language_codes: ["en-GB"],
+      features: %{enable_automatic_punctuation: true}
+    }
+  end
+
+  def streaming_recognition_config(opts \\ []) do
+    interim_results = Keyword.get(opts, :interim_results, false)
+
+    %StreamingRecognitionConfig{
+      config: recognition_config(),
+      # ABSOLUTELY NECESSARY FOR INFINITE STREAMING
+      streaming_features: %{enable_voice_activity_events: true, interim_results: interim_results}
+    }
+  end
+
+  def recognizer do
+    creds_json = Application.get_env(:goth, :json)
+    Jason.decode!(creds_json)["project_id"]
+    "projects/#{Jason.decode!(creds_json)["project_id"]}/locations/global/recognizers/_"
+  end
+
+  def config_request(opts \\ []) do
+    %StreamingRecognizeRequest{
+      streaming_request: {:streaming_config, streaming_recognition_config(opts)},
+      recognizer: recognizer()
+    }
+  end
+
+  def bad_config_request do
+    %StreamingRecognizeRequest{
+      streaming_request: {:streaming_config, :not_valid}
+    }
+  end
+
+  def audio_request(data \\ nil) do
+    data = data || audio_bytes()
+    %StreamingRecognizeRequest{streaming_request: {:audio, data}, recognizer: recognizer()}
+  end
+
+  def bad_audio_request do
+    %StreamingRecognizeRequest{streaming_request: {:audio, :not_valid}}
   end
 end
