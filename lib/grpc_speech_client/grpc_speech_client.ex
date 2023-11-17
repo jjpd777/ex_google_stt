@@ -85,7 +85,7 @@ defmodule ExGoogleSTT.GrpcSpeechClient do
 
   defp receive_others(%{channel: channel, stream: stream} = state) do
     receive do
-      {__MODULE__, :send_request, requests, opts} ->
+      {__MODULE__, :send_request, request, opts} ->
         GRPC.Stub.send_request(stream, request, opts)
         state
 
