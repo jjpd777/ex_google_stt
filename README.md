@@ -124,10 +124,8 @@ Current version of library supports only Streaming API and not tested in product
 
 ## License
 
-Portions of this project are modifications based on work created by [![Software Mansion](https://membraneframework.github.io/static/logo/swm_logo_readme.png)](https://swmansion.com/) and used according to terms described in the Apache License 2.0. See [here](https://github.com/software-mansion-labs/elixir-gcloud-speech-grpc) for the original repository.
+Portions of this project are modifications based on work created by [Sofware Mansion](https://swmansion.com/) and used according to terms described in the Apache License 2.0. See [here](https://github.com/software-mansion-labs/elixir-gcloud-speech-grpc) for the original repository.
+
+The work it is not endorsed by or affiliated with the original authors or their organizations.
 
 The modifications are also licensed under Apache License 2.0.
-
-## Disclaimer
-
-While this project includes modified code from [Original Project or Code Name], it is not endorsed by or affiliated with the original authors or their organizations.
