@@ -47,45 +47,61 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       assert_receive {:response, %Transcript{content: "Hello."}}, 5000
     end
 
-    test "starts a new stream if the previous one is closed and process the audio" do
+    test "starts a new stream if the previous one is closed and process the audio, when forcing the stream to end" do
       recognizer = Fixtures.recognizer()
-      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
+      target = self()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: target, recognizer: recognizer)
       audio_data = Fixtures.audio_bytes()
 
-      # Processes first audio
-      stream = TranscriptionServer.process_audio(server_pid, audio_data)
-      TranscriptionServer.end_stream(stream)
+      for i <- 1..3 do
+        TranscriptionServer.process_audio(server_pid, audio_data)
 
-      assert_receive {:response,
-                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
-                     5000
+        assert_receive {:response,
+                        %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+                       5000
 
-      assert_receive {:response, %Transcript{content: "Advent"}}, 5000
-
-      # Processes second audio
-      new_stream = TranscriptionServer.process_audio(server_pid, audio_data)
-      TranscriptionServer.end_stream(new_stream)
-
-      assert_receive {:response,
-                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
-                     5000
-
-      assert_receive {:response, %Transcript{content: "Advent"}}, 5000
+        TranscriptionServer.end_stream(server_pid)
+        assert_receive {:response, %Transcript{content: "Advent"}}, 5000
+      end
     end
 
-    test "sends audio data to the stream and starts fetching responses" do
+    test "starts a new stream if the previous one is closed and process the audio, when stream ended by itself" do
       recognizer = Fixtures.recognizer()
-      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
-      assert %Stream{} = stream = TranscriptionServer.get_or_start_stream(server_pid)
+      target = self()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: target, recognizer: recognizer)
+      audio_data = Fixtures.small_audio_bytes()
+
+      for i <- 1..3 do
+        TranscriptionServer.process_audio(server_pid, audio_data)
+
+        assert_receive {:response,
+                        %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+                       5000
+
+        TranscriptionServer.end_stream(server_pid)
+        assert_receive {:response, %Transcript{content: "Hello."}}, 5000
+      end
+    end
+
+    test "Keeps processing the requests in the same stream if not ended" do
+      recognizer = Fixtures.recognizer()
+      target = self()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: target, recognizer: recognizer)
       audio_data = Fixtures.audio_bytes()
-      TranscriptionServer.send_audio_data(server_pid, audio_data)
-      TranscriptionServer.end_stream(stream)
+
+      for i <- 1..3 do
+        TranscriptionServer.process_audio(server_pid, audio_data)
+      end
+
+      TranscriptionServer.end_stream(server_pid)
 
       assert_receive {:response,
                       %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
                      5000
 
-      assert_receive {:response, %Transcript{content: "Advent"}}, 5000
+      assert_receive {:response,
+                      %ExGoogleSTT.Transcript{content: "Adventure will Adventure will Advent."}},
+                     5000
     end
 
     test "works as expected with interim results" do
@@ -98,10 +114,8 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
           interim_results: true
         )
 
-      assert %Stream{} = TranscriptionServer.get_or_start_stream(server_pid)
-
       Fixtures.chunked_audio_bytes()
-      |> Enum.each(&TranscriptionServer.send_audio_data(server_pid, &1))
+      |> Enum.each(&TranscriptionServer.process_audio(server_pid, &1))
 
       assert_receive {:response,
                       %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
@@ -147,16 +161,38 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
     test "returns an error if the audio is too large" do
       recognizer = Fixtures.recognizer()
       {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
-      assert %Stream{} = TranscriptionServer.get_or_start_stream(server_pid)
       audio_data = Fixtures.full_audio_bytes()
 
-      TranscriptionServer.send_audio_data(server_pid, audio_data)
+      TranscriptionServer.process_audio(server_pid, audio_data)
 
       assert_receive {:response,
                       %GRPC.RPCError{
                         message: "Audio chunk can be of a a maximum of 25600 bytes" <> _
                       }},
                      5000
+    end
+
+    test "Can process audio after an error" do
+      recognizer = Fixtures.recognizer()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
+      bad_audio = Fixtures.full_audio_bytes()
+      good_audio = Fixtures.small_audio_bytes()
+
+      TranscriptionServer.process_audio(server_pid, bad_audio)
+
+      assert_receive {:response,
+                      %GRPC.RPCError{
+                        message: "Audio chunk can be of a a maximum of 25600 bytes" <> _
+                      }},
+                     5000
+
+      TranscriptionServer.process_audio(server_pid, good_audio)
+
+      assert_receive {:response,
+                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+                     5000
+
+      assert_receive {:response, %Transcript{content: "Hello."}}, 5000
     end
   end
 
@@ -177,8 +213,8 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
             {:ok, server_pid} =
               TranscriptionServer.start_link(target: target, recognizer: recognizer)
 
-            stream = TranscriptionServer.process_audio(server_pid, audio_data)
-            TranscriptionServer.end_stream(stream)
+            TranscriptionServer.process_audio(server_pid, audio_data)
+            TranscriptionServer.end_stream(server_pid)
           end)
         end
 

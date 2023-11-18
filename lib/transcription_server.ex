@@ -108,9 +108,14 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   @impl GenServer
   def handle_call(:end_stream, _from, state) do
-    # TODO check if the client will die on its own
-    GrpcSpeechClient.end_stream(state.speech_client)
-    {:reply, :ok, %{state | stream_state: :closed, speech_client: nil}}
+    case speech_client_state(state) do
+      :open ->
+        :ok = GrpcSpeechClient.end_stream(state.speech_client)
+        {:reply, :ok, %{state | stream_state: :closed, speech_client: nil}}
+
+      :closed ->
+        {:reply, :ok, state}
+    end
   end
 
   @impl GenServer
