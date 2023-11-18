@@ -175,12 +175,12 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   defp speech_client_state(%{speech_client: nil}), do: :closed
 
-  defp speech_client_state(%{stream_state: :closed}) do
-    # maybe kill the client if it is not dead yet?
-    :closed
+  defp speech_client_state(state) do
+    case Process.alive?(state.speech_client) do
+      true -> :open
+      false -> :closed
+    end
   end
-
-  defp speech_client_state(_), do: :open
 
   @spec send_config(pid(), StreamingRecognizeRequest.t()) :: :ok
   defp send_config(speech_client, cfg_request), do: send_request(speech_client, cfg_request)

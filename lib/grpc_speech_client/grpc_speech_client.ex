@@ -127,8 +127,9 @@ defmodule ExGoogleSTT.GrpcSpeechClient do
     exit(:normal)
   end
 
+  # Sends the error back to the caller and exits without drama. Let the caller decide what to do.
   defp handle_error(error, state) do
-    Logger.error("[#{inspect(state.target)}]" <> inspect(error))
-    exit(:error)
+    send(state.target, {:error, error})
+    exit(:normal)
   end
 end
