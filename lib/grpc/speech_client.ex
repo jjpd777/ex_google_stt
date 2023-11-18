@@ -1,11 +1,11 @@
-defmodule ExGoogleSTT.GrpcSpeechClient do
+defmodule ExGoogleSTT.Grpc.SpeechClient do
   @moduledoc false
   # This module wraps a crappy API of gRPC library that has a call reading
   # the process mailbox - `GRPC.Stub.recv/2`.
   # Using GenServer would break the calls to this function as `handle_info` callback
   # would consume any messages that should be parsed by `recv`
 
-  alias ExGoogleSTT.GrpcSpeechClient.Connection
+  alias ExGoogleSTT.Grpc.Connection
   alias Google.Cloud.Speech.V2.Speech.Stub, as: SpeechStub
   alias Google.Cloud.Speech.V2.StreamingRecognizeRequest
 
