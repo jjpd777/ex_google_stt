@@ -15,17 +15,8 @@ defmodule ExGoogleSTT.Grpc.SpeechClient do
 
   @spec start_link(target :: pid()) :: {:ok, pid} | {:error, any()}
   def start_link(target \\ self()) do
-    do_start(:spawn_link, target)
-  end
-
-  @spec start(target :: pid()) :: {:ok, pid} | {:error, any()}
-  def start(target \\ self()) do
-    do_start(:spawn, target)
-  end
-
-  defp do_start(fun, target) do
     with {:ok, channel} <- Connection.connect() do
-      pid = apply(Kernel, fun, [__MODULE__, :init, [channel, target]])
+      pid = apply(Kernel, :spawn_link, [__MODULE__, :init, [channel, target]])
       {:ok, pid}
     end
   end
