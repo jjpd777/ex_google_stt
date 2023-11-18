@@ -4,7 +4,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
   """
   use GenServer
 
-  alias ExGoogleSTT.GrpcSpeechClient
+  alias ExGoogleSTT.Grpc.SpeechClient, as: GrpcSpeechClient
   alias ExGoogleSTT.Transcript
 
   alias Google.Cloud.Speech.V2.{
