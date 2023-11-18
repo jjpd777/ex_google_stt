@@ -4,13 +4,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
 
   alias ExGoogleSTT.{Fixtures, Transcript, TranscriptionServer}
 
-  alias GRPC.Client.Stream
-
-  alias Google.Cloud.Speech.V2.{
-    StreamingRecognizeResponse,
-    StreamingRecognitionResult,
-    SpeechRecognitionAlternative
-  }
+  alias Google.Cloud.Speech.V2.StreamingRecognizeResponse
 
   # ===================== GenServer Tests =====================
 
@@ -53,7 +47,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       {:ok, server_pid} = TranscriptionServer.start_link(target: target, recognizer: recognizer)
       audio_data = Fixtures.audio_bytes()
 
-      for i <- 1..3 do
+      for _ <- 1..3 do
         TranscriptionServer.process_audio(server_pid, audio_data)
 
         assert_receive {:response,
@@ -71,7 +65,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       {:ok, server_pid} = TranscriptionServer.start_link(target: target, recognizer: recognizer)
       audio_data = Fixtures.small_audio_bytes()
 
-      for i <- 1..3 do
+      for _ <- 1..3 do
         TranscriptionServer.process_audio(server_pid, audio_data)
 
         assert_receive {:response,
@@ -89,7 +83,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       {:ok, server_pid} = TranscriptionServer.start_link(target: target, recognizer: recognizer)
       audio_data = Fixtures.audio_bytes()
 
-      for i <- 1..3 do
+      for _ <- 1..3 do
         TranscriptionServer.process_audio(server_pid, audio_data)
       end
 
