@@ -8,7 +8,6 @@ defmodule ExGoogleSTT.TranscriptionServer do
   alias ExGoogleSTT.Transcript
 
   alias Google.Cloud.Speech.V2.{
-    AutoDetectDecodingConfig,
     RecognitionConfig,
     StreamingRecognitionConfig,
     StreamingRecognizeRequest,
