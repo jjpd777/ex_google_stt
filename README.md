@@ -11,7 +11,7 @@ The package can be installed by adding `:ex_google_stt` to your list of dependen
 ```elixir
 def deps do
   [
-    {:ex_google_stt, "~> 0.3.0"}
+    {:ex_google_stt, "~> 0.3.1"}
   ]
 end
 ```
@@ -55,6 +55,12 @@ When starting the `TranscriptionServer`, you can define a few configs:
 - recognizer - a string representing the recognizer to use, defaults to use the recognizer from the config
 - model - a string representing the model to use, defaults to "latest_long". Be careful, changing to 'short' may have unintended consequences
 ```
+
+Note that apart from the `interim_results` these configurations are better off set-up in the reconizer directly, so that you can control it without deploying any code.
+
+See here for details: https://cloud.google.com/speech-to-text/v2/docs/recognizers
+
+Basically, create a recognizer in GCP then add a system_env with the recognizer string on it.
 
 ### Example
 
