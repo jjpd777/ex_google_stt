@@ -28,9 +28,8 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
 
   describe "process_audio/2" do
     test "correcly starts a stream and process the audio" do
-      recognizer = Fixtures.recognizer()
       target = self()
-      {:ok, server_pid} = TranscriptionServer.start_link(target: target, recognizer: recognizer)
+      {:ok, server_pid} = TranscriptionServer.start_link(target: target)
       audio_data = Fixtures.small_audio_bytes()
       TranscriptionServer.process_audio(server_pid, audio_data)
 
@@ -42,9 +41,8 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
     end
 
     test "starts a new stream if the previous one is closed and process the audio, when forcing the stream to end" do
-      recognizer = Fixtures.recognizer()
       target = self()
-      {:ok, server_pid} = TranscriptionServer.start_link(target: target, recognizer: recognizer)
+      {:ok, server_pid} = TranscriptionServer.start_link(target: target)
       audio_data = Fixtures.audio_bytes()
 
       for _ <- 1..3 do
@@ -60,9 +58,8 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
     end
 
     test "starts a new stream if the previous one is closed and process the audio, when stream ended by itself" do
-      recognizer = Fixtures.recognizer()
       target = self()
-      {:ok, server_pid} = TranscriptionServer.start_link(target: target, recognizer: recognizer)
+      {:ok, server_pid} = TranscriptionServer.start_link(target: target)
       audio_data = Fixtures.small_audio_bytes()
 
       for _ <- 1..3 do
@@ -78,9 +75,8 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
     end
 
     test "Keeps processing the requests in the same stream if not ended" do
-      recognizer = Fixtures.recognizer()
       target = self()
-      {:ok, server_pid} = TranscriptionServer.start_link(target: target, recognizer: recognizer)
+      {:ok, server_pid} = TranscriptionServer.start_link(target: target)
       audio_data = Fixtures.audio_bytes()
 
       for _ <- 1..3 do
@@ -99,12 +95,9 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
     end
 
     test "works as expected with interim results" do
-      recognizer = Fixtures.recognizer()
-
       {:ok, server_pid} =
         TranscriptionServer.start_link(
           target: self(),
-          recognizer: recognizer,
           interim_results: true
         )
 
@@ -153,8 +146,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
     end
 
     test "returns an error if the audio is too large" do
-      recognizer = Fixtures.recognizer()
-      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self())
       audio_data = Fixtures.full_audio_bytes()
 
       TranscriptionServer.process_audio(server_pid, audio_data)
@@ -167,8 +159,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
     end
 
     test "Can process audio after an error" do
-      recognizer = Fixtures.recognizer()
-      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), recognizer: recognizer)
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self())
       bad_audio = Fixtures.full_audio_bytes()
       good_audio = Fixtures.small_audio_bytes()
 
@@ -202,10 +193,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       tasks =
         for _ <- 1..number_of_sessions do
           Task.async(fn ->
-            recognizer = Fixtures.recognizer()
-
-            {:ok, server_pid} =
-              TranscriptionServer.start_link(target: target, recognizer: recognizer)
+            {:ok, server_pid} = TranscriptionServer.start_link(target: target)
 
             TranscriptionServer.process_audio(server_pid, audio_data)
             TranscriptionServer.end_stream(server_pid)

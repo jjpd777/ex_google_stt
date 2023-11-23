@@ -141,12 +141,6 @@ defmodule ExGoogleSTT.Fixtures do
     }
   end
 
-  def recognizer do
-    creds_json = Application.get_env(:goth, :json)
-    Jason.decode!(creds_json)["project_id"]
-    "projects/#{Jason.decode!(creds_json)["project_id"]}/locations/global/recognizers/_"
-  end
-
   def config_request(opts \\ []) do
     %StreamingRecognizeRequest{
       streaming_request: {:streaming_config, streaming_recognition_config(opts)},
