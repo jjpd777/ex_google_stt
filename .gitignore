@@ -1,4 +1,4 @@
-config/google-credentials.json
+.config/
 
 # Created by https://www.gitignore.io/api/vim,linux,macos,elixir,visualstudiocode
 # Edit at https://www.gitignore.io/?templates=vim,linux,macos,elixir,visualstudiocode
@@ -89,4 +89,8 @@ tags
 # Ignore all local history of files
 .history
 
-# End of https://www.gitignore.io/api/vim,linux,macos,elixir,visualstudiocode
+# devenv
+devenv.local.nix
+.devenv.*
+.devenv/
+.direnv/
