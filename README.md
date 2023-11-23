@@ -11,7 +11,7 @@ The package can be installed by adding `:ex_google_stt` to your list of dependen
 ```elixir
 def deps do
   [
-    {:ex_google_stt, "~> 0.3.1"}
+    {:ex_google_stt, "~> 0.3.2"}
   ]
 end
 ```

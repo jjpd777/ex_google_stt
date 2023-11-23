@@ -143,8 +143,7 @@ defmodule ExGoogleSTT.Fixtures do
 
   def config_request(opts \\ []) do
     %StreamingRecognizeRequest{
-      streaming_request: {:streaming_config, streaming_recognition_config(opts)},
-      recognizer: recognizer()
+      streaming_request: {:streaming_config, streaming_recognition_config(opts)}
     }
   end
 
@@ -156,7 +155,7 @@ defmodule ExGoogleSTT.Fixtures do
 
   def audio_request(data \\ nil) do
     data = data || audio_bytes()
-    %StreamingRecognizeRequest{streaming_request: {:audio, data}, recognizer: recognizer()}
+    %StreamingRecognizeRequest{streaming_request: {:audio, data}}
   end
 
   def bad_audio_request do

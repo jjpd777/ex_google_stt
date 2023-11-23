@@ -162,12 +162,22 @@ defmodule ExGoogleSTT.TranscriptionServer do
     interim_results = Map.get(opts_map, :interim_results, false)
 
     %StreamingRecognitionConfig{
-      config: recognition_config,
       streaming_features: %{
         enable_voice_activity_events: activity_events,
         interim_results: interim_results
       }
     }
+    |> cast_recognition_config(recognition_config)
+  end
+
+  # do not send the config if empty
+  defp cast_recognition_config(stream_rec_config, recognition_config)
+       when recognition_config == %RecognitionConfig{},
+       do: stream_rec_config
+
+  defp cast_recognition_config(stream_rec_config, recognition_config) do
+    stream_rec_config
+    |> Map.put(:config, recognition_config)
   end
 
   defp cast_decoding_config(%{decoding_config: decoding_config} = recognition_config) do
