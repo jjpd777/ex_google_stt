@@ -28,9 +28,9 @@ defmodule ExGoogleSTT.Grpc.Connection do
   end
 
   defp authorization_header do
-    credentials = Application.get_env(:goth, :json) |> Jason.decode!()
-
-    with {:ok, token} <- Goth.Token.fetch(source: {:service_account, credentials}) do
+    # credentials = Application.get_env(:goth, :json) |> Jason.decode!()
+    # There's no source because it assumes the credentials are in the environment
+    with {:ok, token} <- Goth.Token.fetch([]) do
       %{"authorization" => "#{token.type} #{token.token}"}
     end
   end

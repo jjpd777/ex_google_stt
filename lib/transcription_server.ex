@@ -16,9 +16,6 @@ defmodule ExGoogleSTT.TranscriptionServer do
     StreamingRecognitionResult
   }
 
-  @default_model "latest_long"
-  @default_language_codes ["en-US"]
-
   # ================== APIs ==================
   @doc """
   Starts a transcription server.
@@ -30,6 +27,9 @@ defmodule ExGoogleSTT.TranscriptionServer do
       {:ok, #PID<0.123.0>}
 
   ## Options
+    These options are all optional. The recognizer should be the main point of configuration.
+
+
     - target - a pid to send the results to, defaults to self()
     - language_codes - a list of language codes to use for recognition, defaults to ["en-US"]
     - enable_automatic_punctuation - a boolean to enable automatic punctuation, defaults to true
@@ -149,14 +149,13 @@ defmodule ExGoogleSTT.TranscriptionServer do
   end
 
   defp build_str_recognition_config(opts_map) do
-    recognition_config = %RecognitionConfig{
-      decoding_config: {:auto_decoding_config, %AutoDetectDecodingConfig{}},
-      model: Map.get(opts_map, :model, @default_model),
-      language_codes: Map.get(opts_map, :language_codes, @default_language_codes),
-      features: %{
-        enable_automatic_punctuation: Map.get(opts_map, :enable_automatic_punctuation, true)
-      }
-    }
+    # This assumes the recognizer has the proper configurations, so we'll only override the ones that are passed in
+    recognition_config =
+      %RecognitionConfig{}
+      |> cast_decoding_config()
+      |> cast_model()
+      |> cast_language_codes()
+      |> cast_automatic_punctuation()
 
     # ABSOLUTELY NECESSARY FOR INFINITE STREAMING, because it lets us receive a response immediately after the stream is opened
     activity_events = true
@@ -171,6 +170,36 @@ defmodule ExGoogleSTT.TranscriptionServer do
       }
     }
   end
+
+  defp cast_decoding_config(%{decoding_config: decoding_config} = recognition_config) do
+    recognition_config
+    |> Map.put(:decoding_config, decoding_config)
+  end
+
+  defp cast_decoding_config(recognition_config), do: recognition_config
+
+  defp cast_model(%{model: model} = recognition_config) do
+    recognition_config
+    |> Map.put(:model, model)
+  end
+
+  defp cast_model(recognition_config), do: recognition_config
+
+  defp cast_language_codes(%{language_codes: language_codes} = recognition_config) do
+    recognition_config
+    |> Map.put(:language_codes, language_codes)
+  end
+
+  defp cast_language_codes(recognition_config), do: recognition_config
+
+  defp cast_automatic_punctuation(
+         %{enable_automatic_punctuation: enable_automatic_punctuation} = recognition_config
+       ) do
+    recognition_config
+    |> Map.put(:features, %{enable_automatic_punctuation: enable_automatic_punctuation})
+  end
+
+  defp cast_automatic_punctuation(recognition_config), do: recognition_config
 
   defp default_recognizer, do: Application.get_env(:ex_google_stt, :recognizer)
 
