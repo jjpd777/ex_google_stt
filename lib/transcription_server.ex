@@ -5,7 +5,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
   use GenServer
 
   alias ExGoogleSTT.Grpc.SpeechClient, as: GrpcSpeechClient
-  alias ExGoogleSTT.Transcript
+  alias ExGoogleSTT.{Error, SpeechEvent, Transcript}
 
   alias Google.Cloud.Speech.V2.{
     RecognitionConfig,
@@ -127,7 +127,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
     entries = parse_response(recognize_response)
 
     for entry <- entries do
-      send(target, {:response, entry})
+      send(target, entry)
     end
 
     {:noreply, state}
@@ -241,9 +241,15 @@ defmodule ExGoogleSTT.TranscriptionServer do
     parse_results(results)
   end
 
-  defp parse_response(%StreamingRecognizeResponse{} = response), do: [response]
+  defp parse_response(%StreamingRecognizeResponse{speech_event_type: event_type}),
+    do: [{:stt_event, %SpeechEvent{event: event_type}}]
 
-  defp parse_response({:error, error}), do: [error]
+  # This is a normal timeout, no alarm needed
+  defp parse_response({:error, %GRPC.RPCError{status: 10}}),
+    do: [{:stt_event, :stream_timeout}]
+
+  defp parse_response({:error, %GRPC.RPCError{status: status, message: message}}),
+    do: [{:stt_event, %Error{status: status, message: message}}]
 
   # Ignoring the noise for now
   defp parse_response(_), do: []
@@ -255,6 +261,6 @@ defmodule ExGoogleSTT.TranscriptionServer do
   end
 
   defp parse_result(%StreamingRecognitionResult{alternatives: [alternative]} = result) do
-    %Transcript{content: alternative.transcript, is_final: result.is_final}
+    {:stt_event, %Transcript{content: alternative.transcript, is_final: result.is_final}}
   end
 end

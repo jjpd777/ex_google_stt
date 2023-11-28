@@ -2,9 +2,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
   @moduledoc false
   use ExUnit.Case, async: false
 
-  alias ExGoogleSTT.{Fixtures, Transcript, TranscriptionServer}
-
-  alias Google.Cloud.Speech.V2.StreamingRecognizeResponse
+  alias ExGoogleSTT.{Error, Fixtures, SpeechEvent, Transcript, TranscriptionServer}
 
   # ===================== GenServer Tests =====================
 
@@ -33,11 +31,10 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       audio_data = Fixtures.small_audio_bytes()
       TranscriptionServer.process_audio(server_pid, audio_data)
 
-      assert_receive {:response,
-                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+      assert_receive {:stt_event, %SpeechEvent{event: :SPEECH_ACTIVITY_BEGIN}},
                      5000
 
-      assert_receive {:response, %Transcript{content: "Hello."}}, 5000
+      assert_receive {:stt_event, %Transcript{content: "Hello."}}, 5000
     end
 
     test "starts a new stream if the previous one is closed and process the audio, when forcing the stream to end" do
@@ -48,12 +45,11 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       for _ <- 1..3 do
         TranscriptionServer.process_audio(server_pid, audio_data)
 
-        assert_receive {:response,
-                        %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+        assert_receive {:stt_event, %SpeechEvent{event: :SPEECH_ACTIVITY_BEGIN}},
                        5000
 
         TranscriptionServer.end_stream(server_pid)
-        assert_receive {:response, %Transcript{content: "Advent"}}, 5000
+        assert_receive {:stt_event, %Transcript{content: "Advent"}}, 5000
       end
     end
 
@@ -65,12 +61,11 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       for _ <- 1..3 do
         TranscriptionServer.process_audio(server_pid, audio_data)
 
-        assert_receive {:response,
-                        %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+        assert_receive {:stt_event, %SpeechEvent{event: :SPEECH_ACTIVITY_BEGIN}},
                        5000
 
         TranscriptionServer.end_stream(server_pid)
-        assert_receive {:response, %Transcript{content: "Hello."}}, 5000
+        assert_receive {:stt_event, %Transcript{content: "Hello."}}, 5000
       end
     end
 
@@ -85,11 +80,10 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
 
       TranscriptionServer.end_stream(server_pid)
 
-      assert_receive {:response,
-                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+      assert_receive {:stt_event, %SpeechEvent{event: :SPEECH_ACTIVITY_BEGIN}},
                      5000
 
-      assert_receive {:response,
+      assert_receive {:stt_event,
                       %ExGoogleSTT.Transcript{content: "Adventure will Adventure will Advent."}},
                      5000
     end
@@ -104,15 +98,14 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       Fixtures.chunked_audio_bytes()
       |> Enum.each(&TranscriptionServer.process_audio(server_pid, &1))
 
-      assert_receive {:response,
-                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+      assert_receive {:stt_event, %SpeechEvent{event: :SPEECH_ACTIVITY_BEGIN}},
                      5000
 
       capture_and_assert_interim_transcripts()
     end
 
     defp capture_and_assert_interim_transcripts(interim_transcripts \\ []) do
-      assert_receive {:response, %Transcript{} = transcript}, 5000
+      assert_receive {:stt_event, %Transcript{} = transcript}, 5000
       interim_transcripts = interim_transcripts ++ [transcript]
 
       if transcript.is_final do
@@ -151,8 +144,8 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
 
       TranscriptionServer.process_audio(server_pid, audio_data)
 
-      assert_receive {:response,
-                      %GRPC.RPCError{
+      assert_receive {:stt_event,
+                      %Error{
                         message: "Audio chunk can be of a a maximum of 25600 bytes" <> _
                       }},
                      5000
@@ -165,19 +158,18 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
 
       TranscriptionServer.process_audio(server_pid, bad_audio)
 
-      assert_receive {:response,
-                      %GRPC.RPCError{
+      assert_receive {:stt_event,
+                      %Error{
                         message: "Audio chunk can be of a a maximum of 25600 bytes" <> _
                       }},
                      5000
 
       TranscriptionServer.process_audio(server_pid, good_audio)
 
-      assert_receive {:response,
-                      %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+      assert_receive {:stt_event, %SpeechEvent{event: :SPEECH_ACTIVITY_BEGIN}},
                      5000
 
-      assert_receive {:response, %Transcript{content: "Hello."}}, 5000
+      assert_receive {:stt_event, %Transcript{content: "Hello."}}, 5000
     end
   end
 
@@ -203,11 +195,10 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       Enum.each(tasks, &Task.await/1)
 
       for _ <- 1..number_of_sessions do
-        assert_receive {:response,
-                        %StreamingRecognizeResponse{speech_event_type: :SPEECH_ACTIVITY_BEGIN}},
+        assert_receive {:stt_event, %SpeechEvent{event: :SPEECH_ACTIVITY_BEGIN}},
                        5000
 
-        assert_receive {:response, %Transcript{content: "Advent"}}, 5000
+        assert_receive {:stt_event, %Transcript{content: "Advent"}}, 5000
       end
     end
   end

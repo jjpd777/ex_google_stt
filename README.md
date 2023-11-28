@@ -11,7 +11,7 @@ The package can be installed by adding `:ex_google_stt` to your list of dependen
 ```elixir
 def deps do
   [
-    {:ex_google_stt, "~> 0.3.2"}
+    {:ex_google_stt, "~> 0.3.3"}
   ]
 end
 ```
@@ -69,7 +69,7 @@ Basically, create a recognizer in GCP then add a system_env with the recognizer 
 defmodule MyModule.Transcribing do
   use GenServer
 
-  alias ExGoogleSTT.{Transcript, TranscriptionServer}
+  alias ExGoogleSTT.{Error, SpeechEvent, Transcript, TranscriptionServer}
 
   ...
   def init(_opts) do
@@ -80,13 +80,20 @@ defmodule MyModule.Transcribing do
     TranscriptionServer.process_audio(state.server_pid, speech_binary)
   end
 
-  def handle_info({:response, %{Transcript{} = transcript}}, state) do
+  def handle_info({:stt_event, %{Transcript{} = transcript}}, state) do
     # Do whatever you need with the transcription
   end
 
+  def handle_info({:stt_event, %SpeechEvent{event: :SPEECH_ACTIVITY_BEGIN}}, state) do
+    # You probably want to ignore these
+  end
 
-  def handle_info({:response, other_responses_or_error}, state) do
-    # Do something or just ignore
+  def handle_info({:stt_event, :stream_timeout}, state) do
+    # You probably want to ignore these as well. This is only a simple GRPC timeout, when nothing is coming.
+  end
+
+  def handle_info({:response, %Error{status: some_status, message: message}}, state) do
+    # You might want to to log these, as they are real errors.
   end
 end
 
