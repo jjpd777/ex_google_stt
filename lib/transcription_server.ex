@@ -255,12 +255,12 @@ defmodule ExGoogleSTT.TranscriptionServer do
   defp parse_response(_), do: []
 
   defp parse_results(results) do
-    for result <- results do
-      parse_result(result)
-    end
+    results_content = Enum.map_join(results, "", &parse_result(&1))
+    is_final = Enum.any?(results, & &1.is_final)
+
+    [{:stt_event, %Transcript{content: results_content, is_final: is_final}}]
   end
 
-  defp parse_result(%StreamingRecognitionResult{alternatives: [alternative]} = result) do
-    {:stt_event, %Transcript{content: alternative.transcript, is_final: result.is_final}}
-  end
+  defp parse_result(%StreamingRecognitionResult{alternatives: [alternative]}),
+    do: alternative.transcript
 end
