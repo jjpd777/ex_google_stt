@@ -138,8 +138,8 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       assert matches / length(expected_interims) >= 0.88
     end
 
-    test "returns an error if the audio is too large" do
-      {:ok, server_pid} = TranscriptionServer.start_link(target: self())
+    test "returns an error if the audio is too large, when split_by_chunk is off" do
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), split_by_chunk: false)
       audio_data = Fixtures.full_audio_bytes()
 
       TranscriptionServer.process_audio(server_pid, audio_data)
@@ -151,8 +151,25 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
                      5000
     end
 
+    test "process large audio bytes correctly, when split_by_chunk is on" do
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), split_by_chunk: true)
+      audio_data = Fixtures.full_audio_bytes()
+
+      TranscriptionServer.process_audio(server_pid, audio_data)
+
+      assert_receive {
+                       :stt_event,
+                       %ExGoogleSTT.Transcript{
+                         content:
+                           "Adventure 1 a scandal in Bohemia from The Adventures of Sherlock Holmes by Sir Arthur Conan Doyle",
+                         is_final: true
+                       }
+                     },
+                     5000
+    end
+
     test "Can process audio after an error" do
-      {:ok, server_pid} = TranscriptionServer.start_link(target: self())
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self(), split_by_chunk: false)
       bad_audio = Fixtures.full_audio_bytes()
       good_audio = Fixtures.small_audio_bytes()
 
