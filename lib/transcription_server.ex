@@ -35,6 +35,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
     - interim_results - a boolean to enable interim results, defaults to false
     - recognizer - a string representing the recognizer to use, defaults to use the recognizer from the config
     - model - a string representing the model to use, defaults to "latest_long". Be careful, changing to 'short' may have unintended consequences
+    - split_by_chunk - boolean - whether to split the audio into chunks or not, defaults to true. Used to avoid hitting the Google STT limit
   """
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, Map.new(opts))
 
@@ -65,20 +66,22 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   @impl GenServer
   def init(opts_map) do
-    target = Map.get(opts_map, :target, self())
     config_request = build_config_request(opts_map)
     recognizer = Map.get(opts_map, :recognizer, default_recognizer())
+    split_by_chunk = Map.get(opts_map, :split_by_chunk, true)
+    target = Map.get(opts_map, :target, self())
 
     # This ensures the transcriptions server is killed if the caller dies
     Process.monitor(target)
 
     {:ok,
      %{
-       target: target,
-       recognizer: recognizer,
        config_request: config_request,
+       recognizer: recognizer,
        speech_client: nil,
-       stream_state: :closed
+       split_by_chunk: split_by_chunk,
+       stream_state: :closed,
+       target: target
      }}
   end
 
@@ -100,8 +103,13 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   @impl GenServer
   def handle_call({:send_audio_request, audio_data}, _from, state) do
-    audio_request = build_audio_request(audio_data, state.recognizer)
-    send_request(state.speech_client, audio_request)
+    audio_data
+    |> maybe_split_audio(state.split_by_chunk)
+    |> Enum.each(fn audio_chunk ->
+      audio_request = build_audio_request(audio_chunk, state.recognizer)
+      send_request(state.speech_client, audio_request)
+    end)
+
     {:reply, :ok, state}
   end
 
@@ -214,6 +222,34 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   defp build_audio_request(audio_data, recognizer) do
     %StreamingRecognizeRequest{streaming_request: {:audio, audio_data}, recognizer: recognizer}
+  end
+
+  @google_stt_limit 25_600
+  defp maybe_split_audio(audio_data, true), do: chunk_every(audio_data, @google_stt_limit)
+  defp maybe_split_audio(audio_data, false), do: [audio_data]
+
+  def chunk_every(binary, chunk_size) do
+    if byte_size(binary) <= chunk_size do
+      [binary]
+    else
+      {result, _} = chunk_every_rem(binary, chunk_size)
+      result
+    end
+  end
+
+  @spec chunk_every_rem(binary, chunk_size :: pos_integer) :: {[binary], remainder :: binary}
+  def chunk_every_rem(binary, chunk_size) do
+    do_chunk_every_rem(binary, chunk_size)
+  end
+
+  defp do_chunk_every_rem(binary, chunk_size, acc \\ []) do
+    case binary do
+      <<chunk::binary-size(chunk_size)>> <> rest ->
+        do_chunk_every_rem(rest, chunk_size, [chunk | acc])
+
+      rest ->
+        {acc |> Enum.reverse(), rest}
+    end
   end
 
   defp speech_client_state(%{speech_client: nil}), do: :closed
