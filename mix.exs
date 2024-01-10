@@ -1,7 +1,7 @@
 defmodule ExGoogleSTT.MixProject do
   use Mix.Project
 
-  @version "0.3.4"
+  @version "0.4.0"
   @github_url "https://github.com/luiz-pereira/ex_google_stt"
 
   def project do
