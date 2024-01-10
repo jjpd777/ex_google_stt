@@ -94,3 +94,4 @@ devenv.local.nix
 .devenv.*
 .devenv/
 .direnv/
+.envrc
