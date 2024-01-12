@@ -69,6 +69,32 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       end
     end
 
+    test "does not process the audio if the stream is canceled" do
+      target = self()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: target)
+      audio_data = Fixtures.small_audio_bytes()
+      TranscriptionServer.process_audio(server_pid, audio_data)
+      TranscriptionServer.cancel_stream(server_pid)
+      refute_receive {:stt_event, %Transcript{content: "Hello."}}, 500
+    end
+
+    test "starts a new stream if the previous one is canceled and processes the new ones" do
+      target = self()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: target)
+
+      audio_data = Fixtures.small_audio_bytes()
+      TranscriptionServer.process_audio(server_pid, audio_data)
+      TranscriptionServer.cancel_stream(server_pid)
+      refute_receive {:stt_event, %Transcript{content: "Hello."}}, 500
+
+      TranscriptionServer.process_audio(server_pid, audio_data)
+
+      assert_receive {:stt_event, %SpeechEvent{event: :SPEECH_ACTIVITY_BEGIN}},
+                     5000
+
+      assert_receive {:stt_event, %Transcript{content: "Hello."}}, 5000
+    end
+
     test "Keeps processing the requests in the same stream if not ended" do
       target = self()
       {:ok, server_pid} = TranscriptionServer.start_link(target: target)
