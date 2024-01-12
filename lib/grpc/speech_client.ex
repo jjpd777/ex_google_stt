@@ -99,7 +99,6 @@ defmodule ExGoogleSTT.Grpc.SpeechClient do
           state
         else
           stream |> GRPC.Stub.cancel()
-          Connection.disconnect(channel)
           exit(:normal)
         end
 
