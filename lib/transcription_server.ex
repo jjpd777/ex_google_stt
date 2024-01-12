@@ -62,6 +62,9 @@ defmodule ExGoogleSTT.TranscriptionServer do
   def end_stream(transcription_server_pid),
     do: GenServer.call(transcription_server_pid, :end_stream)
 
+  def cancel_stream(transcription_server_pid),
+    do: GenServer.call(transcription_server_pid, :cancel_stream)
+
   # ================== GenServer ==================
 
   @impl GenServer
@@ -87,18 +90,13 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   @impl GenServer
   def handle_call({:get_or_start_speech_client}, _from, state) do
-    speech_client =
-      case speech_client_state(state) do
-        :closed ->
-          {:ok, speech_client} = GrpcSpeechClient.start_link()
-          :ok = send_config(speech_client, state.config_request)
-          speech_client
-
-        :open ->
-          state.speech_client
-      end
-
-    {:reply, speech_client, %{state | speech_client: speech_client, stream_state: :open}}
+    if state.stream_state == :closed or speech_client_state(state.speech_client) == :closed do
+      speech_client = restart_speech_client(state)
+      new_state = %{state | speech_client: speech_client, stream_state: :open}
+      {:reply, :ok, new_state}
+    else
+      {:reply, :ok, state}
+    end
   end
 
   @impl GenServer
@@ -115,14 +113,22 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   @impl GenServer
   def handle_call(:end_stream, _from, state) do
-    case speech_client_state(state) do
+    case state.stream_state do
       :open ->
         :ok = GrpcSpeechClient.end_stream(state.speech_client)
-        {:reply, :ok, %{state | stream_state: :closed, speech_client: nil}}
+        {:reply, :ok, %{state | stream_state: :closed}}
 
       :closed ->
         {:reply, :ok, state}
     end
+  end
+
+  @impl GenServer
+  # The difference between cancel and end is that this one kills the speech client immediately
+  def handle_call(:cancel_stream, _from, state) do
+    :ok = GrpcSpeechClient.cancel_stream(state.speech_client)
+    :ok = GrpcSpeechClient.stop(state.speech_client)
+    {:reply, :ok, %{state | stream_state: :closed, speech_client: nil}}
   end
 
   @impl GenServer
@@ -252,10 +258,23 @@ defmodule ExGoogleSTT.TranscriptionServer do
     end
   end
 
-  defp speech_client_state(%{speech_client: nil}), do: :closed
+  defp restart_speech_client(state) do
+    maybe_kill_speech_client(state.speech_client)
+    {:ok, speech_client} = GrpcSpeechClient.start_link()
+    :ok = send_config(speech_client, state.config_request)
+    speech_client
+  end
 
-  defp speech_client_state(state) do
-    case Process.alive?(state.speech_client) do
+  defp maybe_kill_speech_client(speech_client) do
+    if speech_client_state(speech_client) == :open,
+      do: GrpcSpeechClient.stop(speech_client),
+      else: :ok
+  end
+
+  defp speech_client_state(nil), do: :closed
+
+  defp speech_client_state(speech_client) do
+    case Process.alive?(speech_client) do
       true -> :open
       false -> :closed
     end

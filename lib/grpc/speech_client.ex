@@ -39,6 +39,12 @@ defmodule ExGoogleSTT.Grpc.SpeechClient do
     :ok
   end
 
+  @spec cancel_stream(client :: pid()) :: :ok
+  def cancel_stream(pid) do
+    send(pid, {__MODULE__, :cancel_stream})
+    :ok
+  end
+
   @doc false
   # entry point of client process
   def init(channel, target) do
@@ -86,6 +92,14 @@ defmodule ExGoogleSTT.Grpc.SpeechClient do
         else
           stream |> GRPC.Stub.end_stream()
           %{state | eos: true}
+        end
+
+      {__MODULE__, :cancel_stream} ->
+        if state.eos do
+          state
+        else
+          stream |> GRPC.Stub.cancel()
+          exit(:normal)
         end
 
       {__MODULE__, :stop} ->
