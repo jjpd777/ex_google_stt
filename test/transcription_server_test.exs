@@ -3,8 +3,67 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
   use ExUnit.Case, async: false
 
   alias ExGoogleSTT.{Error, Fixtures, SpeechEvent, Transcript, TranscriptionServer}
+  alias Google.Cloud.Speech.V2.{RecognitionConfig, StreamingRecognitionConfig}
 
   # ===================== GenServer Tests =====================
+
+  describe "start_link/1" do
+    test "starts a server with the given target" do
+      target = self()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: target)
+
+      # look at the server state
+      state = :sys.get_state(server_pid)
+
+      assert state[:target] == target
+    end
+
+    test "defaults configs to nil (recognizer defaults are used)" do
+      target = self()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: target)
+      %{config_request: %{streaming_request: streaming_request}} = :sys.get_state(server_pid)
+
+      assert streaming_request ==
+               {:streaming_config,
+                %StreamingRecognitionConfig{
+                  config: %RecognitionConfig{
+                    features: nil,
+                    adaptation: nil,
+                    model: nil,
+                    language_codes: [],
+                    transcript_normalization: nil,
+                    decoding_config: nil,
+                    __unknown_fields__: []
+                  },
+                  streaming_features: %{
+                    interim_results: false,
+                    enable_voice_activity_events: true
+                  },
+                  config_mask: nil,
+                  __unknown_fields__: []
+                }}
+    end
+  end
+
+  test "allows for overriding language_codes" do
+    target = self()
+    {:ok, server_pid} = TranscriptionServer.start_link(target: target, language_codes: ["pt-BR"])
+
+    %{config_request: %{streaming_request: {:streaming_config, streaming_config}}} =
+      :sys.get_state(server_pid)
+
+    assert %{config: %{language_codes: ["pt-BR"]}} = streaming_config
+  end
+
+  test "allows for overriding interim_results" do
+    target = self()
+    {:ok, server_pid} = TranscriptionServer.start_link(target: target, interim_results: true)
+
+    %{config_request: %{streaming_request: {:streaming_config, streaming_config}}} =
+      :sys.get_state(server_pid)
+
+    assert %{streaming_features: %{interim_results: true}} = streaming_config
+  end
 
   describe "Monitor" do
     test "stream server is closed if caller is shut down" do
