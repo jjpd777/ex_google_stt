@@ -126,9 +126,15 @@ defmodule ExGoogleSTT.TranscriptionServer do
   @impl GenServer
   # The difference between cancel and end is that this one kills the speech client immediately
   def handle_call(:cancel_stream, _from, state) do
-    :ok = GrpcSpeechClient.cancel_stream(state.speech_client)
-    :ok = GrpcSpeechClient.stop(state.speech_client)
-    {:reply, :ok, %{state | stream_state: :closed, speech_client: nil}}
+    case state.stream_state do
+      :open ->
+        :ok = GrpcSpeechClient.cancel_stream(state.speech_client)
+        :ok = GrpcSpeechClient.stop(state.speech_client)
+        {:reply, :ok, %{state | stream_state: :closed, speech_client: nil}}
+
+      :closed ->
+        {:reply, :ok, state}
+    end
   end
 
   @impl GenServer
