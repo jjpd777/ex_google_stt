@@ -154,6 +154,23 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       assert_receive {:stt_event, %Transcript{content: "Hello."}}, 5000
     end
 
+    test "starts a new stream if the previous one receives an aborted error" do
+      target = self()
+      {:ok, server_pid} = TranscriptionServer.start_link(target: target)
+
+      audio_data = Fixtures.small_audio_bytes()
+      TranscriptionServer.process_audio(server_pid, audio_data)
+      send(server_pid, {:error, %GRPC.RPCError{status: 10}})
+      assert_receive {:stt_event, :stream_timeout}
+
+      TranscriptionServer.process_audio(server_pid, audio_data)
+
+      assert_receive {:stt_event, %SpeechEvent{event: :SPEECH_ACTIVITY_BEGIN}},
+                     5000
+
+      assert_receive {:stt_event, %Transcript{content: "Hello."}}, 5000
+    end
+
     test "Keeps processing the requests in the same stream if not ended" do
       target = self()
       {:ok, server_pid} = TranscriptionServer.start_link(target: target)

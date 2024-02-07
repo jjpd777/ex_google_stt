@@ -143,6 +143,18 @@ defmodule ExGoogleSTT.TranscriptionServer do
     {:stop, :normal, state}
   end
 
+  # If audio data has not been received for the stream timeout, an `aborted`
+  # error is returned. Afterwards, no requests will be processed so the stream
+  # has to be closed. A new `process_audio` request would restart the stream.
+  def handle_info({:error, %GRPC.RPCError{status: 10}}, %{target: target} = state) do
+    if speech_client_state(state.speech_client) == :open do
+      GrpcSpeechClient.stop(state.speech_client)
+    end
+
+    send(target, {:stt_event, :stream_timeout})
+    {:noreply, %{state | stream_state: :closed, speech_client: nil}}
+  end
+
   def handle_info(recognize_response, %{target: target} = state) do
     entries = parse_response(recognize_response)
 
@@ -309,10 +321,6 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   defp parse_response(%StreamingRecognizeResponse{speech_event_type: event_type}),
     do: [{:stt_event, %SpeechEvent{event: event_type}}]
-
-  # This is a normal timeout, no alarm needed
-  defp parse_response({:error, %GRPC.RPCError{status: 10}}),
-    do: [{:stt_event, :stream_timeout}]
 
   defp parse_response({:error, %GRPC.RPCError{status: status, message: message}}),
     do: [{:stt_event, %Error{status: status, message: message}}]
