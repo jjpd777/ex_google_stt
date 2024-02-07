@@ -304,4 +304,13 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       end
     end
   end
+
+  describe "cancel_stream/1" do
+    test "does not crash when speech_client is not alive" do
+      {:ok, server_pid} = TranscriptionServer.start_link(target: self())
+
+      assert TranscriptionServer.cancel_stream(server_pid) == :ok
+      assert :sys.get_state(server_pid).stream_state == :closed
+    end
+  end
 end
