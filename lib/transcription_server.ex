@@ -337,4 +337,8 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   defp parse_result(%StreamingRecognitionResult{alternatives: [alternative]}),
     do: alternative.transcript
+
+  # Seeing this in the logs. Not sure what it is
+  defp parse_result(%StreamingRecognitionResult{alternatives: []}),
+    do: ""
 end
