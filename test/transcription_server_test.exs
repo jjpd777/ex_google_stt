@@ -186,7 +186,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
                      5000
 
       assert_receive {:stt_event,
-                      %ExGoogleSTT.Transcript{content: "Adventure will Adventure will Advent."}},
+                      %ExGoogleSTT.Transcript{content: "adventure adventure adventure"}},
                      5000
     end
 
