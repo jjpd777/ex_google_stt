@@ -9,6 +9,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
 
   alias Google.Cloud.Speech.V2.{
     RecognitionConfig,
+    SpeakerDiarizationConfig,
     StreamingRecognitionConfig,
     StreamingRecognizeRequest,
     StreamingRecognizeResponse,
@@ -32,6 +33,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
     - target - a pid to send the results to, defaults to self()
     - language_codes - a list of language codes to use for recognition, defaults to ["en-US"]
     - enable_automatic_punctuation - a boolean to enable automatic punctuation, defaults to true
+    - enable_speaker_diarization - a boolean to enable speaker diarization, defaults to false
     - interim_results - a boolean to enable interim results, defaults to false
     - recognizer - a string representing the recognizer to use, defaults to use the recognizer from the config
     - model - a string representing the model to use, defaults to "latest_long". Be careful, changing to 'short' may have unintended consequences
@@ -188,6 +190,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
       |> cast_model(opts_map)
       |> cast_language_codes(opts_map)
       |> cast_automatic_punctuation(opts_map)
+      |> cast_diarization_config(opts_map)
 
     # ABSOLUTELY NECESSARY FOR INFINITE STREAMING, because it lets us receive a response immediately after the stream is opened
     activity_events = true
@@ -246,6 +249,13 @@ defmodule ExGoogleSTT.TranscriptionServer do
   end
 
   defp cast_automatic_punctuation(recognition_config, _), do: recognition_config
+
+  defp cast_diarization_config(recognition_config, %{enable_speaker_diarization: true}) do
+    diarization_config = %SpeakerDiarizationConfig{min_speaker_count: 1, max_speaker_count: 4}
+    Map.put(recognition_config, :features, %{diarization_config: diarization_config})
+  end
+
+  defp cast_diarization_config(recognition_config, _), do: recognition_config
 
   defp default_recognizer, do: Application.get_env(:ex_google_stt, :recognizer)
 
