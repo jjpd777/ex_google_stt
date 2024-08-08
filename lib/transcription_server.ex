@@ -213,9 +213,14 @@ defmodule ExGoogleSTT.TranscriptionServer do
     |> Map.put(:config, recognition_config)
   end
 
-  defp cast_decoding_config(recognition_config, %{decoding_config: decoding_config}) do
+  defp cast_decoding_config(recognition_config, %{auto_decoding_config: auto_decoding_config}) do
     recognition_config
-    |> Map.put(:decoding_config, decoding_config)
+    |> Map.put(:decoding_config, {:auto_decoding_config, auto_decoding_config})
+  end
+
+  defp cast_decoding_config(recognition_config, %{explicit_decoding_config: explicit_decoding_config}) do
+    recognition_config
+    |> Map.put(:decoding_config, {:explicit_decoding_config, explicit_decoding_config})
   end
 
   defp cast_decoding_config(recognition_config, _), do: recognition_config

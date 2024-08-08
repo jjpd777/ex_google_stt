@@ -3,7 +3,12 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
   use ExUnit.Case, async: false
 
   alias ExGoogleSTT.{Error, Fixtures, SpeechEvent, Transcript, TranscriptionServer}
-  alias Google.Cloud.Speech.V2.{RecognitionConfig, StreamingRecognitionConfig}
+
+  alias Google.Cloud.Speech.V2.{
+    ExplicitDecodingConfig,
+    RecognitionConfig,
+    StreamingRecognitionConfig
+  }
 
   # ===================== GenServer Tests =====================
 
@@ -63,6 +68,26 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
       :sys.get_state(server_pid)
 
     assert %{streaming_features: %{interim_results: true}} = streaming_config
+  end
+
+  test "allows for overriding explicit_decoding_config" do
+    target = self()
+
+    {:ok, server_pid} =
+      TranscriptionServer.start_link(
+        target: target,
+        explicit_decoding_config: %ExplicitDecodingConfig{encoding: :AUDIO_ENCODING_UNSPECIFIED}
+      )
+
+    %{config_request: %{streaming_request: {:streaming_config, streaming_config}}} =
+      :sys.get_state(server_pid)
+
+    assert %{
+             config: %{
+               decoding_config:
+                 {:explicit_decoding_config, %{encoding: :AUDIO_ENCODING_UNSPECIFIED}}
+             }
+           } = streaming_config
   end
 
   describe "Monitor" do
