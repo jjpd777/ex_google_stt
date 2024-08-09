@@ -9,7 +9,7 @@
 
     elixir = {
       enable = true;
-      package = pkgs.beam.packages.erlangR26.elixir_1_14;
+      package = pkgs.beam.packages.erlang_26.elixir_1_14;
     };
   };
 

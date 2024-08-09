@@ -1,7 +1,7 @@
 defmodule ExGoogleSTT.MixProject do
   use Mix.Project
 
-  @version "0.5.0"
+  @version "0.5.1"
   @github_url "https://github.com/luiz-pereira/ex_google_stt"
 
   def project do
@@ -31,11 +31,11 @@ defmodule ExGoogleSTT.MixProject do
 
   defp deps do
     [
-      {:certifi, "~> 2.12"},
+      {:certifi, "~> 2.13"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.27", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:goth, "~> 1.3"},
-      {:grpc, "~> 0.7"},
+      {:grpc, "~> 0.9"},
       {:protobuf, "~> 0.12"}
     ]
   end
