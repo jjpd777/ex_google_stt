@@ -273,7 +273,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
 
       assert_receive {:stt_event,
                       %Error{
-                        message: "Audio chunk can be of a a maximum of 25600 bytes" <> _
+                        message: "Audio chunk can be of a maximum of 25600 bytes" <> _
                       }},
                      5000
     end
@@ -304,7 +304,7 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
 
       assert_receive {:stt_event,
                       %Error{
-                        message: "Audio chunk can be of a a maximum of 25600 bytes" <> _
+                        message: "Audio chunk can be of a maximum of 25600 bytes" <> _
                       }},
                      5000
 
