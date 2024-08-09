@@ -54,6 +54,7 @@ When starting the `TranscriptionServer`, you can define a few configs:
 - interim_results - a boolean to enable interim results, defaults to false
 - recognizer - a string representing the recognizer to use, defaults to use the recognizer from the config
 - model - a string representing the model to use, defaults to "latest_long". Be careful, changing to 'short' may have unintended consequences
+- explicit_decoding_config - a struct with audio decoding parameters
 ```
 
 Note that apart from the `interim_results` these configurations are better off set-up in the reconizer directly, so that you can control it without deploying any code.
@@ -104,6 +105,32 @@ The library allows you define other response handling functions and even ditch t
 
 
 ## Notes
+
+### Decoding
+
+If you are not relying on auto decoding, you can specify the custom encoding
+parameters of your audio stream.
+
+```elixir
+defmodule MyModule.Transcribing do
+  use GenServer
+
+  alias ExGoogleSTT.TranscriptionServer
+  alias Google.Cloud.Speech.V2.ExplicitDecodingConfig
+
+  def init(_opts) do
+    {:ok, transcription_server} =
+      TranscriptionServer.start_link(
+        target: self(),
+        interim_results: true,
+        explicit_decoding_config: %ExplicitDecodingConfig{
+          encoding: :LINEAR16,
+          sample_rate_hertz: 16000,
+          audio_channel_count: 1
+        }
+      )
+  end
+```
 
 ### Infinite stream
 Google's STT V2 knows when a sentence finishes, as long as there's some silence after it. When that happens, it'll return the transcription without ending the stream.
