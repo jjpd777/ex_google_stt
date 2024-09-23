@@ -90,6 +90,13 @@ defmodule ExGoogleSTT.TranscriptionServerTest do
            } = streaming_config
   end
 
+  describe "schedule_restart_stream/1" do
+    test "schedules a restart of the stream" do
+      TranscriptionServer.schedule_restart_stream(50)
+      assert_receive :restart_stream, 100
+    end
+  end
+
   describe "Monitor" do
     test "stream server is closed if caller is shut down" do
       target = self()

@@ -15,6 +15,10 @@ defmodule ExGoogleSTT.TranscriptionServer do
     StreamingRecognitionResult
   }
 
+  @grpc_dealine 5 * 60 * 1000
+  @restart_stream_timeout 3 * 60 * 1000
+  @smaller_restart_stream_timeout 10_000
+
   # ================== APIs ==================
   @doc """
   Starts a transcription server.
@@ -36,6 +40,7 @@ defmodule ExGoogleSTT.TranscriptionServer do
     - recognizer - a string representing the recognizer to use, defaults to use the recognizer from the config
     - model - a string representing the model to use, defaults to "latest_long". Be careful, changing to 'short' may have unintended consequences
     - split_by_chunk - boolean - whether to split the audio into chunks or not, defaults to true. Used to avoid hitting the Google STT limit
+    - infinite - boolean - the deadline for the GRPC stream is set to 5 minutes by default. If you want to keep the stream open indefinitely, set this to true and ExGoogleSTT will handle the stream timeout for you.
   """
   def start_link(opts \\ []), do: GenServer.start_link(__MODULE__, Map.new(opts))
 
@@ -73,9 +78,12 @@ defmodule ExGoogleSTT.TranscriptionServer do
     recognizer = Map.get(opts_map, :recognizer, default_recognizer())
     split_by_chunk = Map.get(opts_map, :split_by_chunk, true)
     target = Map.get(opts_map, :target, self())
+    infinite = Map.get(opts_map, :infinite, false)
 
     # This ensures the transcriptions server is killed if the caller dies
     Process.monitor(target)
+
+    if infinite, do: schedule_restart_stream(@restart_stream_timeout)
 
     {:ok,
      %{
@@ -84,15 +92,18 @@ defmodule ExGoogleSTT.TranscriptionServer do
        speech_client: nil,
        split_by_chunk: split_by_chunk,
        stream_state: :closed,
-       target: target
+       target: target,
+       deadline: System.monotonic_time(:millisecond) + @grpc_dealine
      }}
   end
+
+  def schedule_restart_stream(interval),
+    do: Process.send_after(self(), :restart_stream, interval)
 
   @impl GenServer
   def handle_call({:get_or_start_speech_client}, _from, state) do
     if state.stream_state == :closed or speech_client_state(state.speech_client) == :closed do
-      speech_client = restart_speech_client(state)
-      new_state = %{state | speech_client: speech_client, stream_state: :open}
+      {:ok, new_state} = restart_speech_client(state)
       {:reply, :ok, new_state}
     else
       {:reply, :ok, state}
@@ -165,6 +176,22 @@ defmodule ExGoogleSTT.TranscriptionServer do
     {:noreply, state}
   end
 
+  def handle_info(:restart_stream, %{stream_state: stream_state} = state) do
+    # Only restart the stream if it's closed, i.e. there's no active stream going on, otherwise it'll cut the transcription midway
+    # If the 3 minute mark is reached, we'll try again in smaller intervals
+    # If the deadline is close to being reached, we'll force a restart to avoid breaking the stream
+    now = System.monotonic_time(:millisecond)
+
+    if stream_state == :closed or now > @grpc_dealine - @smaller_restart_stream_timeout * 2 do
+      {:ok, new_state} = restart_speech_client(state)
+      schedule_restart_stream(@restart_stream_timeout)
+      {:noreply, new_state}
+    else
+      schedule_restart_stream(@smaller_restart_stream_timeout)
+      {:noreply, state}
+    end
+  end
+
   def handle_info(_, state), do: {:noreply, state}
 
   # ================== GenServer Helpers ==================
@@ -218,7 +245,9 @@ defmodule ExGoogleSTT.TranscriptionServer do
     |> Map.put(:decoding_config, {:auto_decoding_config, auto_decoding_config})
   end
 
-  defp cast_decoding_config(recognition_config, %{explicit_decoding_config: explicit_decoding_config}) do
+  defp cast_decoding_config(recognition_config, %{
+         explicit_decoding_config: explicit_decoding_config
+       }) do
     recognition_config
     |> Map.put(:decoding_config, {:explicit_decoding_config, explicit_decoding_config})
   end
@@ -290,7 +319,16 @@ defmodule ExGoogleSTT.TranscriptionServer do
     maybe_kill_speech_client(state.speech_client)
     {:ok, speech_client} = GrpcSpeechClient.start_link()
     :ok = send_config(speech_client, state.config_request)
-    speech_client
+
+    changed_attrs = %{
+      speech_client: speech_client,
+      stream_state: :open,
+      deadline: System.monotonic_time(:millisecond) + @grpc_dealine
+    }
+
+    new_state = Map.merge(state, changed_attrs)
+
+    {:ok, new_state}
   end
 
   defp maybe_kill_speech_client(speech_client) do
