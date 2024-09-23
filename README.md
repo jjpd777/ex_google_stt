@@ -11,7 +11,7 @@ The package can be installed by adding `:ex_google_stt` to your list of dependen
 ```elixir
 def deps do
   [
-    {:ex_google_stt, "~> 0.5.1"}
+    {:ex_google_stt, "~> 0.5.2"}
   ]
 end
 ```
@@ -55,6 +55,7 @@ When starting the `TranscriptionServer`, you can define a few configs:
 - recognizer - a string representing the recognizer to use, defaults to use the recognizer from the config
 - model - a string representing the model to use, defaults to "latest_long". Be careful, changing to 'short' may have unintended consequences
 - explicit_decoding_config - a struct with audio decoding parameters
+- infinite - a boolean to keep the stream open indefinitely, defaults to false
 ```
 
 Note that apart from the `interim_results` these configurations are better off set-up in the reconizer directly, so that you can control it without deploying any code.
